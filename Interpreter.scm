@@ -6,7 +6,7 @@
   (lambda (expression state)
        (cond
          ((number? expression) expression)
-         ((list? expression)
+         ((variable? expression) (MVvariable expression state))
          ((eq? '+ (operator expression)) (+ (MVexpression (leftoperand expression) state)
                                             (MVexpression (rightoperand expression) state)))
          ((eq? '- (operator expression)) 
@@ -50,14 +50,23 @@
   (lambda (variable state)
     (cond
       ((null? (namelist state)) (error 'undeclared-variable))
+      ((null? (valuelist state)) (error 'unassigned-variable))
       ((eq? (car (namelist state)) variable) (car (valuelist state)))
       (else (MVvariable variable (cons (cdr (namelist state)) (cons (cdr (valuelist state)) '())))))))
                                              
+;this updates the state after a declaration
+(define MSdeclare
+  (lambda (var variable state)
+    (cons (append (cons variable '()) (namelist state)) (cons '() (valuelist state)))))
 
 ;this updates the state after an assignment
+;trouble with the else statment
 (define MSassign
   (lambda (variable expression state)
-    (cons variable (namelist state)) (cons (MVexpression expression state) (valuelist state))))
+    (cond
+      ((null? (namelist state)) (error 'undeclared-variable))
+      ((eq? (car (namelist state)) variable) (cons (namelist state) (cons (cons (MVexpression expression state) (valuelist state)) '())))
+      (else? ))))
     
     
 ;ABSTRACTIONS
@@ -78,4 +87,11 @@
   (lambda (l)
     (cond
       ((null? (cddr l)) #t)
+      (else #f))))
+
+;determines if an expression is a variable
+(define variable?
+  (lambda (var)
+    (cond
+      ((not (list? var)) #t)
       (else #f))))
