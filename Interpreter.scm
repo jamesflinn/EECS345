@@ -6,6 +6,7 @@
   (lambda (expression state)
        (cond
          ((number? expression) expression)
+         ((list? expression)
          ((eq? '+ (operator expression)) (+ (MVexpression (leftoperand expression) state)
                                             (MVexpression (rightoperand expression) state)))
          ((eq? '- (operator expression)) 
@@ -14,7 +15,7 @@
                  (else (- (MVexpression (leftoperand expression) state)
                           (MVexpressin (rightoperand expression) state)))))
          ((eq? '* (operator expression)) (* (MVexpression (leftoperand expression) state)
-                                            (MVexpressin (rightoperand expression) state)))
+                                            (MVexpression (rightoperand expression) state)))
          ((eq? '/ (operator expression)) (quotient (MVexpression (leftoperand expression) state)
                                                    (MVexpression (rightoperand expression) state)))
          ((eq? '% (operator expression)) (remainder (MVexpression (leftoperand expression) state)
@@ -40,12 +41,37 @@
       ((eq? '|| (operator condition)) (or (MVcondition (leftoperand condition) state) (MVcondition (rightoperand condition) state)))
       (else (error 'bad-operator)))))
 
+;This should return the value of a return statement
+(define MVreturn
+  (lambda (return expression state) (MVexpression expression state)))
+
+;this should return the value of a variable
+(define MVvariable
+  (lambda (variable state)
+    (cond
+      ((null? (namelist state)) (error 'undeclared-variable))
+      ((eq? (car (namelist state)) variable) (car (valuelist state)))
+      (else (MVvariable variable (cons (cdr (namelist state)) (cons (cdr (valuelist state)) '())))))))
+                                             
+
+;this updates the state after an assignment
+(define MSassign
+  (lambda (variable expression state)
+    (cons variable (namelist state)) (cons (MVexpression expression state) (valuelist state))))
+    
+    
+;ABSTRACTIONS
 ; the helper functions to determine where the operator and operands are depending on the 
 (define operator car)
 
 (define leftoperand cadr)
 
 (define rightoperand caddr)
+
+;these helper functions grab the variable name list or the value list from the state
+(define namelist car)
+
+(define valuelist cadr)
 
 ;this determines if an expression is unary
 (define unary? 
