@@ -10,16 +10,16 @@
 (define interpret-help
   (lambda (tree state)
     (cond
-      ((null? tree) 'error)
-      ((eq? (identifier tree) 'var) (interpret-help (cdr tree) (MSdeclare (variable tree) state)))
+      ((null? tree) (error 'empty-tree))
+      ((eq? (identifier tree) 'var) (interpret-help (cdr tree) (MSdeclare (variable tree) (cddar tree) state)))
       ((eq? (identifier tree) '=) (interpret-help (cdr tree) (MSassign (variable tree) (expression-stmt tree) state)))
       ((eq? (identifier tree) 'if) (interpret-help (cdr tree) (if (MVcondition (condition-stmt tree) state)
                                                                   (interpret-help (then-stmt tree) state)
                                                                   (if (else? (car tree))
                                                                       (interpret-help (else-stmt tree) state)
                                                                       state))))
-      ((eq? (identifier tree) 'return) (interpret-help (cdr tree) (MVreturn (return-stmt tree) state)))
-      (else 'error))))
+      ((eq? (identifier tree) 'return) (MVreturn (return-stmt tree) state))
+      (else (error 'bad-identifier)))))
 
 ;This is gonna return the value of an expression
 (define MVexpression
@@ -35,7 +35,7 @@
                (cond
                  ((unary? expression) (* (MVexpression (leftoperand expression) state) -1))
                  (else (- (MVexpression (leftoperand expression) state)
-                          (MVexpressin (rightoperand expression) state)))))
+                          (MVexpression (rightoperand expression) state)))))
          ((eq? '* (operator expression)) (* (MVexpression (leftoperand expression) state)
                                             (MVexpression (rightoperand expression) state)))
          ((eq? '/ (operator expression)) (quotient (MVexpression (leftoperand expression) state)
@@ -66,7 +66,7 @@
 
 ;This should return the value of a return statement
 (define MVreturn
-  (lambda (return expression state) (MVexpression expression state)))
+  (lambda (expression state) (MVexpression expression state)))
 
 ;this should return the value of a variable
 (define MVvariable
@@ -78,8 +78,15 @@
                                              
 ;this updates the state after a declaration
 (define MSdeclare
+<<<<<<< HEAD
   (lambda (variable state)
     (cons (append (cons variable '()) (namelist state)) (cons (cons 'error '()) (valuelist state)))))
+=======
+  (lambda (variable expression state)
+    (cond
+      ((null? expression) (cons (append (cons variable '()) (namelist state)) (cons (cons 'error '()) (valuelist state))))
+      (else (MSassign variable (car expression) (MSdeclare variable '() state))))))
+>>>>>>> 4506dfafff43e15e1bc8a893a21da0e882ac9eae
 
 ;this updates the state after an assignment
 (define MSassign
@@ -88,11 +95,27 @@
       ((null? (namelist state)) (error 'undeclared-variable))
       ((eq? (car (namelist state)) variable) (cons (namelist state) (cons (cons (MVexpression expression state) (cdr (valuelist state))) '() )))
       (else (cons (cons (car (namelist state)) (namelist (MSassign variable expression (cons (cdr (namelist state)) (cons (cdr (valuelist state)) '() )))))
+<<<<<<< HEAD
                   (cons (cons (car (valuelist state)) (valuelist (MSassign variable expression (cons (cdr (namelist state)) (cons (cdr (valuelist state)) '() ))))) '()))))))
 
 ;this should update the state of an if statement
 
 
+=======
+                  (cons (cons 
+                         (car (valuelist state)) 
+                         (valuelist (MSassign variable expression (cons 
+                                                                   (cdr (namelist state)) 
+                                                                   (cons (cdr (valuelist state)) '() ))))) '())
+                                                                       )))))
+>>>>>>> 4506dfafff43e15e1bc8a893a21da0e882ac9eae
+
+(define MSassign2
+  (lambda (variable expression state)
+    (lambda (namelist valuelist)
+      (append namelist valuelist)
+      )
+    (namelist state) (valuelist state)))
 
 ;ABSTRACTIONS
 ; the helper functions to determine where the operator and operands are depending on the 
