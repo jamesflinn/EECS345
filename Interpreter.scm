@@ -6,6 +6,8 @@
   (lambda (expression state)
        (cond
          ((number? expression) expression)
+         ((eq? 'true expression) #t)
+         ((eq? 'false expression) #f)
          ((variable? expression) (MVvariable expression state))
          ((eq? '+ (operator expression)) (+ (MVexpression (leftoperand expression) state)
                                             (MVexpression (rightoperand expression) state)))
@@ -28,6 +30,7 @@
   (lambda (condition state)
     (cond
       ((number? condition) condition)
+      ((variable? condition) (MVvariable condition))
       ((eq? 'true condition ) #t)
       ((eq? 'false condition ) #f)
       ((eq? '! (operator condition)) (not (MVcondition (leftoperand condition) state)))
@@ -50,14 +53,13 @@
   (lambda (variable state)
     (cond
       ((null? (namelist state)) (error 'undeclared-variable))
-      ((null? (valuelist state)) (error 'unassigned-variable))
       ((eq? (car (namelist state)) variable) (car (valuelist state)))
       (else (MVvariable variable (cons (cdr (namelist state)) (cons (cdr (valuelist state)) '())))))))
                                              
 ;this updates the state after a declaration
 (define MSdeclare
   (lambda (var variable state)
-    (cons (append (cons variable '()) (namelist state)) (cons '() (valuelist state)))))
+    (cons (append (cons variable '()) (namelist state)) (cons (cons 'error '()) (valuelist state)))))
 
 ;this updates the state after an assignment
 ;trouble with the else statment
@@ -65,10 +67,11 @@
   (lambda (variable expression state)
     (cond
       ((null? (namelist state)) (error 'undeclared-variable))
-      ((eq? (car (namelist state)) variable) (cons (namelist state) (cons (cons (MVexpression expression state) (valuelist state)) '())))
-      (else? ))))
-    
-    
+      ((eq? (car (namelist state)) variable) (cons (namelist state) (cons (cons (MVexpression expression state) (cdr (valuelist state))) '() )))
+      (else (cons (cons (car (namelist state)) (namelist (MSassign variable expression (cons (cdr (namelist state)) (cons (cdr (valuelist state)) '() )))))
+                  (cons (cons (car (valuelist state)) (valuelist (MSassign variable expression (cons (cdr (namelist state)) (cons (cdr (valuelist state)) '() ))))) '())
+                                                                       )))))
+
 ;ABSTRACTIONS
 ; the helper functions to determine where the operator and operands are depending on the 
 (define operator car)
