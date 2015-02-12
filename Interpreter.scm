@@ -58,19 +58,21 @@
                                              
 ;this updates the state after a declaration
 (define MSdeclare
-  (lambda (var variable state)
+  (lambda (variable state)
     (cons (append (cons variable '()) (namelist state)) (cons (cons 'error '()) (valuelist state)))))
 
 ;this updates the state after an assignment
-;trouble with the else statment
 (define MSassign
   (lambda (variable expression state)
     (cond
       ((null? (namelist state)) (error 'undeclared-variable))
       ((eq? (car (namelist state)) variable) (cons (namelist state) (cons (cons (MVexpression expression state) (cdr (valuelist state))) '() )))
       (else (cons (cons (car (namelist state)) (namelist (MSassign variable expression (cons (cdr (namelist state)) (cons (cdr (valuelist state)) '() )))))
-                  (cons (cons (car (valuelist state)) (valuelist (MSassign variable expression (cons (cdr (namelist state)) (cons (cdr (valuelist state)) '() ))))) '())
-                                                                       )))))
+                  (cons (cons (car (valuelist state)) (valuelist (MSassign variable expression (cons (cdr (namelist state)) (cons (cdr (valuelist state)) '() ))))) '()))))))
+
+;this should update the state of an if statement
+
+
 
 ;ABSTRACTIONS
 ; the helper functions to determine where the operator and operands are depending on the 
