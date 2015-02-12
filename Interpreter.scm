@@ -80,7 +80,7 @@
 (define MSdeclare
   (lambda (variable expression state)
     (cond
-      ((null? expression) (cons (append (cons variable '()) (namelist state)) (cons (cons 'error '()) (valuelist state))))
+      ((null? expression) (cons (cons variable (namelist state)) (cons (cons 'error (valuelist state)) '())))
       (else (MSassign variable (car expression) (MSdeclare variable '() state))))))
 
 ;this updates the state after an assignment
@@ -90,20 +90,18 @@
     (cond
       ((null? (namelist state)) (error 'undeclared-variable))
       ((eq? (car (namelist state)) variable) (cons (namelist state) (cons (cons (MVexpression expression state) (cdr (valuelist state))) '() )))
-      (else (cons (cons (car (namelist state)) (namelist (MSassign variable expression (cons (cdr (namelist state)) (cons (cdr (valuelist state)) '() )))))
+      (else (cons (cons 
+                   (car (namelist state)) 
+                   (namelist (MSassign variable expression (append 
+                                                            (cons (cdr (namelist state))  '())
+                                                            (cons (cdr (valuelist state)) '())))))
                   (cons (cons 
                          (car (valuelist state)) 
-                         (valuelist (MSassign variable expression (cons 
-                                                                   (cdr (namelist state)) 
-                                                                   (cons (cdr (valuelist state)) '() ))))) '())
+                         (valuelist (MSassign variable expression (append 
+                                                                   (cons (cdr (namelist state))  '())
+                                                                   (cons (cdr (valuelist state)) '()))))) '())
                                                                        )))))
 
-(define MSassign2
-  (lambda (variable expression state)
-    (lambda (namelist valuelist)
-      (append namelist valuelist)
-      )
-    (namelist state) (valuelist state)))
 
 ;ABSTRACTIONS
 ; the helper functions to determine where the operator and operands are depending on the 
@@ -147,3 +145,5 @@
     (cond
       ((null? (cdddr stmt)) #f)
       (else #t))))
+
+;(interpret "test.txt")
