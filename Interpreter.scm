@@ -162,3 +162,5 @@
     (cond
       ((null? (cdddr stmt)) #f)
       (else #t))))
+
+(interpret "test.txt")
