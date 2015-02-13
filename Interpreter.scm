@@ -5,7 +5,7 @@
 
 (define interpret
   (lambda (filename)
-    (interpret-help (parser filename) '(() ()))))
+    (interpret-help (parser filename) initial-state)))
   
 (define interpret-help
   (lambda (tree state)
@@ -64,14 +64,18 @@
 
 ;This should return the value of a return statement
 (define MVreturn
-  (lambda (expression state) (MVexpression expression state)))
+  (lambda (expression state) 
+    (cond
+      ((eq? (MVexpression expression state) #t) 'true)
+      ((eq? (MVexpression expression state) #f) 'false)
+      (else (MVexpression expression state)))))
 
 ;this should return the value of a variable
 (define MVvariable
   (lambda (variable state)
     (cond
-      ((eq? variable 'true) 'true)
-      ((eq? variable 'false) 'false)
+      ((eq? variable 'true) #t)
+      ((eq? variable 'false) #f)
       ((null? (namelist state)) (error 'undeclared-variable))
       ((eq? (car (namelist state)) variable) (car (valuelist state)))
       (else (MVvariable variable (cons (cdr (namelist state)) (cons (cdr (valuelist state)) '())))))))
@@ -105,6 +109,8 @@
 
 
 ;ABSTRACTIONS
+;the empty state
+(define initial-state '(() ()))
 ; the helper functions to determine where the operator and operands are depending on the 
 (define operator car)
 
@@ -156,5 +162,3 @@
     (cond
       ((null? (cdddr stmt)) #f)
       (else #t))))
-
-(interpret "test.txt")
