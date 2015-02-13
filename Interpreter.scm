@@ -26,8 +26,6 @@
   (lambda (expression state)
        (cond
          ((number? expression) expression)
-         ((eq? 'true expression) #t)
-         ((eq? 'false expression) #f)
          ((variable? expression) (MVvariable expression state))
          ((eq? '+ (operator expression)) (+ (MVexpression (leftoperand expression) state)
                                             (MVexpression (rightoperand expression) state)))
@@ -42,7 +40,7 @@
                                                    (MVexpression (rightoperand expression) state)))
          ((eq? '% (operator expression)) (remainder (MVexpression (leftoperand expression) state)
                                                     (MVexpression (rightoperand expression) state)))
-        (else (error 'bad-operator)))
+        (else (MVcondition expression state)))
        ))
 
 ;This should return the value of a condition
@@ -54,15 +52,15 @@
       ((eq? 'true condition ) #t)
       ((eq? 'false condition ) #f)
       ((eq? '! (operator condition)) (not (MVcondition (leftoperand condition) state)))
-      ((eq? '> (operator condition)) (> (MVcondition (leftoperand condition) state) (MVcondition (rightoperand condition) state)))
-      ((eq? '>= (operator condition)) (>= (MVcondition (leftoperand condition) state) (MVcondition (rightoperand condition) state)))
-      ((eq? '< (operator condition)) (< (MVcondition (leftoperand condition) state) (MVcondition (rightoperand condition) state)))
-      ((eq? '<= (operator condition)) (<= (MVcondition (leftoperand condition) state) (MVcondition (rightoperand condition) state)))
-      ((eq? '== (operator condition)) (eq? (MVcondition (leftoperand condition) state) (MVcondition (rightoperand condition) state)))
-      ((eq? '!= (operator condition)) (not (eq? (MVcondition (leftoperand condition) state) (MVcondition (rightoperand condition) state))))
+      ((eq? '> (operator condition)) (> (MVexpression (leftoperand condition) state) (MVexpression (rightoperand condition) state)))
+      ((eq? '>= (operator condition)) (>= (MVexpression (leftoperand condition) state) (MVexpression (rightoperand condition) state)))
+      ((eq? '< (operator condition)) (< (MVexpression (leftoperand condition) state) (MVexpression (rightoperand condition) state)))
+      ((eq? '<= (operator condition)) (<= (MVexpression (leftoperand condition) state) (MVexpression (rightoperand condition) state)))
+      ((eq? '== (operator condition)) (eq? (MVexpression (leftoperand condition) state) (MVexpression (rightoperand condition) state)))
+      ((eq? '!= (operator condition)) (not (eq? (MVexpression (leftoperand condition) state) (MVexpression (rightoperand condition) state))))
       ((eq? '&& (operator condition)) (and (MVcondition (leftoperand condition) state) (MVcondition (rightoperand condition) state)))
       ((eq? '|| (operator condition)) (or (MVcondition (leftoperand condition) state) (MVcondition (rightoperand condition) state)))
-      (else (error 'bad-operator)))))
+      (else (error condition)))))
 
 ;This should return the value of a return statement
 (define MVreturn
@@ -72,6 +70,8 @@
 (define MVvariable
   (lambda (variable state)
     (cond
+      ((eq? variable 'true) 'true)
+      ((eq? variable 'false) 'false)
       ((null? (namelist state)) (error 'undeclared-variable))
       ((eq? (car (namelist state)) variable) (car (valuelist state)))
       (else (MVvariable variable (cons (cdr (namelist state)) (cons (cdr (valuelist state)) '())))))))
@@ -80,6 +80,7 @@
 (define MSdeclare
   (lambda (variable expression state)
     (cond
+      ((declared? variable (namelist state)) (error 'redefining))
       ((null? expression) (cons (cons variable (namelist state)) (cons (cons 'error (valuelist state)) '())))
       (else (MSassign variable (car expression) (MSdeclare variable '() state))))))
 
@@ -141,6 +142,14 @@
       ((not (list? var)) #t)
       (else #f))))
 
+;determines if a variable is declared
+(define declared?
+  (lambda (var varnames)
+    (cond
+      ((null? varnames) #f)
+      ((eq? var (car varnames )) #t)
+      (else (declared? var (cdr varnames))))))
+
 ; return true if if stmt has an else
 (define else?
   (lambda (stmt)
@@ -148,4 +157,4 @@
       ((null? (cdddr stmt)) #f)
       (else #t))))
 
-;(interpret "test.txt")
+(interpret "test.txt")
