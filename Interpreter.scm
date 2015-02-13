@@ -10,13 +10,13 @@
 (define interpret-help
   (lambda (tree state)
     (cond
-      ((null? tree) (error 'empty-tree))
+      ((null? tree) state)
       ((eq? (identifier tree) 'var) (interpret-help (cdr tree) (MSdeclare (variable tree) (cddar tree) state)))
       ((eq? (identifier tree) '=) (interpret-help (cdr tree) (MSassign (variable tree) (expression-stmt tree) state)))
       ((eq? (identifier tree) 'if) (interpret-help (cdr tree) (if (MVcondition (condition-stmt tree) state)
-                                                                  (interpret-help (then-stmt tree) state)
+                                                                  (interpret-help (cons (then-stmt tree) '()) state)
                                                                   (if (else? (car tree))
-                                                                      (interpret-help (else-stmt tree) state)
+                                                                      (interpret-help (cons (else-stmt tree) '()) state)
                                                                       state))))
       ((eq? (identifier tree) 'return) (MVreturn (return-stmt tree) state))
       (else (error 'bad-identifier)))))
@@ -50,7 +50,7 @@
   (lambda (condition state)
     (cond
       ((number? condition) condition)
-      ((variable? condition) (MVvariable condition))
+      ((variable? condition) (MVvariable condition state))
       ((eq? 'true condition ) #t)
       ((eq? 'false condition ) #f)
       ((eq? '! (operator condition)) (not (MVcondition (leftoperand condition) state)))
@@ -120,9 +120,11 @@
 (define identifier caar)
 (define variable cadar)
 (define expression-stmt caddar)
-(define condition-stmt cadr)
-(define then-stmt caddr)
-(define else-stmt cadddr)
+(define condition-stmt cadar)
+(define then-stmt caddar)
+(define else-stmt 
+  (lambda (stmt)
+    (cadddr (car stmt))))
 (define return-stmt cadar)
 
 ;this determines if an expression is unary
