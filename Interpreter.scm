@@ -106,6 +106,18 @@
                                                                    (cons (cdr (namelist state))  '())
                                                                    (cons (cdr (valuelist state)) '()))))) '())
                                                                        )))))
+(define MSblock
+  (lambda (body return state)
+    (cond
+      ((null? body) (return state))
+      (else
+
+;provides the state for a while loop
+(define MSwhile
+  (lambda (condition body return state)
+    (cond
+      ((MVcondition condition state) (return (MSwhile condition body return (MSblock body state))))
+      (else (return state)))))
 
 
 ;ABSTRACTIONS
@@ -163,4 +175,4 @@
       ((null? (cdddr stmt)) #f)
       (else #t))))
 
-(interpret "test.txt")
+
