@@ -23,25 +23,24 @@
 
 ;This is gonna return the value of an expression
 (define MVexpression
-  (lambda (expression state)
+  (lambda (expression state return)
        (cond
-         ((number? expression) expression)
-         ((variable? expression) (MVvariable expression state))
-         ((eq? '+ (operator expression)) (+ (MVexpression (leftoperand expression) state)
-                                            (MVexpression (rightoperand expression) state)))
+         ((number? expression) (return expression))
+         ((variable? expression) (return (MVvariable expression state)))
+         ((eq? '+ (operator expression))(MVexpression (leftoperand expression) state (lambda (v1) (MVexpression (rightoperand expression) state (lambda (v2) (return (+ v1 v2)))))))
          ((eq? '- (operator expression)) 
                (cond
-                 ((unary? expression) (* (MVexpression (leftoperand expression) state) -1))
-                 (else (- (MVexpression (leftoperand expression) state)
-                          (MVexpression (rightoperand expression) state)))))
-         ((eq? '* (operator expression)) (* (MVexpression (leftoperand expression) state)
-                                            (MVexpression (rightoperand expression) state)))
-         ((eq? '/ (operator expression)) (quotient (MVexpression (leftoperand expression) state)
-                                                   (MVexpression (rightoperand expression) state)))
-         ((eq? '% (operator expression)) (remainder (MVexpression (leftoperand expression) state)
-                                                    (MVexpression (rightoperand expression) state)))
-        (else (MVcondition expression state)))
-       ))
+                 ((unary? expression) (MVexpression (leftoperand expression) state (lambda (v) (* v -1)))
+                 (else (MVexpression (leftoperand expression) state (lambda (v1) 
+                          (MVexpression (rightoperand expression) state (lambda (v2) (return (-v1 v2))))))))))
+         ((eq? '* (operator expression)) (MVexpression (leftoperand expression) state (lambda (v1)
+                                            (MVexpression (rightoperand expression) state (lambda (v2) (return (*v1 v2)))))))
+         ((eq? '/ (operator expression)) (MVexpression (leftoperand expression) state (lambda (v1)
+                                                   (MVexpression (rightoperand expression) state (lambda (v2)(return (quotient v1 v2)))))))
+         ((eq? '% (operator expression)) (MVexpression (leftoperand expression) state (lambda (v1)
+                                                    (MVexpression (rightoperand expression) state (lambda (v2) (return (% v1 v2)))))))
+        (else (return MVcondition expression state))
+       )))
 
 ;This should return the value of a condition
 (define MVcondition
@@ -64,21 +63,21 @@
 
 ;This should return the value of a return statement
 (define MVreturn
-  (lambda (expression state) 
+  (lambda (expression state return) 
     (cond
-      ((eq? (MVexpression expression state) #t) 'true)
-      ((eq? (MVexpression expression state) #f) 'false)
+      ((eq? (MVexpression expression state) #t) (return true))
+      ((eq? (MVexpression expression state) #f) (return false))
       (else (MVexpression expression state)))))
 
 ;this should return the value of a variable
 (define MVvariable
-  (lambda (variable state)
+  (lambda (variable state return)
     (cond
-      ((eq? variable 'true) #t)
-      ((eq? variable 'false) #f)
-      ((null? (namelist state)) (error 'undeclared-variable))
-      ((eq? (car (namelist state)) variable) (car (valuelist state)))
-      (else (MVvariable variable (cons (cdr (namelist state)) (cons (cdr (valuelist state)) '())))))))
+      ((eq? variable 'true) (return #t))
+      ((eq? variable 'false) (return #f))
+      ((null? (namelist state)) (return(error 'undeclared-variable)))
+      ((eq? (car (namelist state)) variable) (return (car (valuelist state))))
+      (else (MVvariable variable (return (cons (cdr (namelist state)) (cons (cdr (valuelist state)) '()))))))))
                                              
 ;this updates the state after a declaration
 (define MSdeclare
@@ -106,11 +105,6 @@
                                                                    (cons (cdr (namelist state))  '())
                                                                    (cons (cdr (valuelist state)) '()))))) '())
                                                                        )))))
-(define MSblock
-  (lambda (body return state)
-    (cond
-      ((null? body) (return state))
-      (else
 
 ;provides the state for a while loop
 (define MSwhile
@@ -174,5 +168,24 @@
     (cond
       ((null? (cdddr stmt)) #f)
       (else #t))))
+
+(interpret "test1.txt")
+(interpret "test2.txt")
+(interpret "test3.txt")
+(interpret "test4.txt")
+(interpret "test5.txt")
+(interpret "test6.txt")
+(interpret "test7.txt")
+(interpret "test8.txt")
+(interpret "test9.txt")
+(interpret "test10.txt")
+(interpret "test11.txt")
+(interpret "test12.txt")
+(interpret "test13.txt")
+(interpret "test14.txt")
+(interpret "test15.txt")
+(interpret "test16.txt")
+(interpret "test17.txt")
+(interpret "test18.txt")
 
 
