@@ -5,20 +5,20 @@
 
 (define interpret
   (lambda (filename)
-    (interpret-help (parser filename) initial-state)))
+    (interpret-help (parser filename) initial-state (lambda (v) v))))
   
 (define interpret-help
-  (lambda (tree state)
+  (lambda (tree state return)
     (cond
       ((null? tree) state)
-      ((eq? (identifier tree) 'var) (interpret-help (cdr tree) (MSdeclare (variable tree) (cddar tree) state)))
-      ((eq? (identifier tree) '=) (interpret-help (cdr tree) (MSassign (variable tree) (expression-stmt tree) state)))
-      ((eq? (identifier tree) 'if) (interpret-help (cdr tree) (if (MVcondition (condition-stmt tree) state (lambda (v) v))
-                                                                  (interpret-help (cons (then-stmt tree) '()) state)
+      ((eq? (identifier tree) 'var) (interpret-help (cdr tree) (MSdeclare (variable tree) (cddar tree) state) return))
+      ((eq? (identifier tree) '=) (interpret-help (cdr tree) (MSassign (variable tree) (expression-stmt tree) state) return))
+      ((eq? (identifier tree) 'if) (interpret-help (cdr tree) (if (MVcondition (condition-stmt tree) state return)
+                                                                  (interpret-help (cons (then-stmt tree) '()) state return)
                                                                   (if (else? (car tree))
-                                                                      (interpret-help (cons (else-stmt tree) '()) state)
-                                                                      state))))
-      ((eq? (identifier tree) 'return) (MVreturn (return-stmt tree) state (lambda (v) v)))
+                                                                      (interpret-help (cons (else-stmt tree) '()) state return)
+                                                                      state)) return))
+      ((eq? (identifier tree) 'return) (MVreturn (return-stmt tree) state return))
       (else (error 'bad-identifier)))))
 
 ;This is gonna return the value of an expression
@@ -50,7 +50,7 @@
       ((variable? condition) (return (MVvariable condition state)))
       ((eq? 'true condition ) (return #t))
       ((eq? 'false condition ) (return #f))
-      ((eq? '! (operator condition)) (MVcondition (leftoperand condition) state (lambda (v) (return (not v1)))))
+      ((eq? '! (operator condition)) (MVcondition (leftoperand condition) state (lambda (v) (return (not v)))))
       ((eq? '> (operator condition)) (MVexpression (leftoperand condition) state (lambda (v1) (MVexpression (rightoperand condition) state (lambda (v2) (return (> v1 v2)))))))
       ((eq? '>= (operator condition)) (MVexpression (leftoperand condition) state (lambda (v1) (MVexpression (rightoperand condition) state (lambda (v2) (return (>= v1 v2)))))))
       ((eq? '< (operator condition)) (MVexpression (leftoperand condition) state (lambda (v1) (MVexpression (rightoperand condition) state (lambda (v2) (return (< v1 v2)))))))
@@ -65,8 +65,8 @@
 (define MVreturn
   (lambda (expression state return) 
     (cond
-      ((eq? (MVexpression expression state return) #t) (return true))
-      ((eq? (MVexpression expression state return) #f) (return false))
+      ((eq? (MVexpression expression state return) #t) (return 'true))
+      ((eq? (MVexpression expression state return) #f) (return 'false))
       (else (MVexpression expression state return)))))
 
 ;this should return the value of a variable
@@ -184,8 +184,8 @@
 ;(interpret "test13.txt")
 ;(interpret "test14.txt")
 (interpret "test15.txt")
-;(interpret "test16.txt")
-;(interpret "test17.txt")
-;(interpret "test18.txt")
+(interpret "test16.txt")
+(interpret "test17.txt")
+(interpret "test18.txt")
 
 
