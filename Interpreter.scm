@@ -44,21 +44,21 @@
 
 ;This should return the value of a condition
 (define MVcondition
-  (lambda (condition state)
+  (lambda (condition state return)
     (cond
       ((number? condition) condition)
       ((variable? condition) (MVvariable condition state))
       ((eq? 'true condition ) #t)
       ((eq? 'false condition ) #f)
-      ((eq? '! (operator condition)) (not (MVcondition (leftoperand condition) state)))
-      ((eq? '> (operator condition)) (> (MVexpression (leftoperand condition) state) (MVexpression (rightoperand condition) state)))
-      ((eq? '>= (operator condition)) (>= (MVexpression (leftoperand condition) state) (MVexpression (rightoperand condition) state)))
-      ((eq? '< (operator condition)) (< (MVexpression (leftoperand condition) state) (MVexpression (rightoperand condition) state)))
-      ((eq? '<= (operator condition)) (<= (MVexpression (leftoperand condition) state) (MVexpression (rightoperand condition) state)))
-      ((eq? '== (operator condition)) (eq? (MVexpression (leftoperand condition) state) (MVexpression (rightoperand condition) state)))
-      ((eq? '!= (operator condition)) (not (eq? (MVexpression (leftoperand condition) state) (MVexpression (rightoperand condition) state))))
-      ((eq? '&& (operator condition)) (and (MVcondition (leftoperand condition) state) (MVcondition (rightoperand condition) state)))
-      ((eq? '|| (operator condition)) (or (MVcondition (leftoperand condition) state) (MVcondition (rightoperand condition) state)))
+      ((eq? '! (operator condition)) (MVcondition (leftoperand condition) state (lambda (v) (return (not v1)))))
+      ((eq? '> (operator condition)) (MVexpression (leftoperand condition) state (lambda (v1) (MVexpression (rightoperand condition) state (lambda (v2) (return (> v1 v2)))))))
+      ((eq? '>= (operator condition)) (MVexpression (leftoperand condition) state (lambda (v1) (MVexpression (rightoperand condition) state (lambda (v2) (return (>= v1 v2)))))))
+      ((eq? '< (operator condition)) (MVexpression (leftoperand condition) state (lambda (v1) (MVexpression (rightoperand condition) state (lambda (v2) (return (< v1 v2)))))))
+      ((eq? '<= (operator condition)) (MVexpression (leftoperand condition) state (lambda (v1) (MVexpression (rightoperand condition) state (lambda (v2) (return (<= v1 v2)))))))
+      ((eq? '== (operator condition)) (MVexpression (leftoperand condition) state (lambda (v1) (MVexpression (rightoperand condition) state (lambda (v2) (return (eq? v1 v2)))))))
+      ((eq? '!= (operator condition)) (MVexpression (leftoperand condition) state (lambda (v1) (MVexpression (rightoperand condition) state (lambda (v2) (return (not (eq? v1 v2))))))))
+      ((eq? '&& (operator condition)) (MVcondition (leftoperand condition) state (lambda (v1) (MVcondition (rightoperand condition) state (lambda (v2) (and v1 v2))))))
+      ((eq? '|| (operator condition)) (MVcondition (leftoperand condition) state (lambda (v1) (MVcondition (rightoperand condition) state (lambda (v2) (or v1 v2))))))
       (else (error condition)))))
 
 ;This should return the value of a return statement
