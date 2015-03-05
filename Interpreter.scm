@@ -13,12 +13,12 @@
       ((null? tree) state)
       ((eq? (identifier tree) 'var) (interpret-help (cdr tree) (MSdeclare (variable tree) (cddar tree) state)))
       ((eq? (identifier tree) '=) (interpret-help (cdr tree) (MSassign (variable tree) (expression-stmt tree) state)))
-      ((eq? (identifier tree) 'if) (interpret-help (cdr tree) (if (MVcondition (condition-stmt tree) state)
+      ((eq? (identifier tree) 'if) (interpret-help (cdr tree) (if (MVcondition (condition-stmt tree) state (lambda (v) v))
                                                                   (interpret-help (cons (then-stmt tree) '()) state)
                                                                   (if (else? (car tree))
                                                                       (interpret-help (cons (else-stmt tree) '()) state)
                                                                       state))))
-      ((eq? (identifier tree) 'return) (MVreturn (return-stmt tree) state))
+      ((eq? (identifier tree) 'return) (MVreturn (return-stmt tree) state (lambda (v) v)))
       (else (error 'bad-identifier)))))
 
 ;This is gonna return the value of an expression
@@ -30,26 +30,26 @@
          ((eq? '+ (operator expression))(MVexpression (leftoperand expression) state (lambda (v1) (MVexpression (rightoperand expression) state (lambda (v2) (return (+ v1 v2)))))))
          ((eq? '- (operator expression)) 
                (cond
-                 ((unary? expression) (MVexpression (leftoperand expression) state (lambda (v) (* v -1)))
+                 ((unary? expression) (MVexpression (leftoperand expression) state (lambda (v) (return (* v -1)))))
                  (else (MVexpression (leftoperand expression) state (lambda (v1) 
-                          (MVexpression (rightoperand expression) state (lambda (v2) (return (-v1 v2))))))))))
+                          (MVexpression (rightoperand expression) state (lambda (v2) (return (- v1 v2)))))))))
          ((eq? '* (operator expression)) (MVexpression (leftoperand expression) state (lambda (v1)
-                                            (MVexpression (rightoperand expression) state (lambda (v2) (return (*v1 v2)))))))
+                                            (MVexpression (rightoperand expression) state (lambda (v2) (return (* v1 v2)))))))
          ((eq? '/ (operator expression)) (MVexpression (leftoperand expression) state (lambda (v1)
                                                    (MVexpression (rightoperand expression) state (lambda (v2)(return (quotient v1 v2)))))))
          ((eq? '% (operator expression)) (MVexpression (leftoperand expression) state (lambda (v1)
-                                                    (MVexpression (rightoperand expression) state (lambda (v2) (return (% v1 v2)))))))
-        (else (return MVcondition expression state))
+                                                    (MVexpression (rightoperand expression) state (lambda (v2) (return (remainder v1 v2)))))))
+        (else (return (MVcondition expression state return)))
        )))
 
 ;This should return the value of a condition
 (define MVcondition
   (lambda (condition state return)
     (cond
-      ((number? condition) condition)
-      ((variable? condition) (MVvariable condition state))
-      ((eq? 'true condition ) #t)
-      ((eq? 'false condition ) #f)
+      ((number? condition) (return condition))
+      ((variable? condition) (return (MVvariable condition state)))
+      ((eq? 'true condition ) (return #t))
+      ((eq? 'false condition ) (return #f))
       ((eq? '! (operator condition)) (MVcondition (leftoperand condition) state (lambda (v) (return (not v1)))))
       ((eq? '> (operator condition)) (MVexpression (leftoperand condition) state (lambda (v1) (MVexpression (rightoperand condition) state (lambda (v2) (return (> v1 v2)))))))
       ((eq? '>= (operator condition)) (MVexpression (leftoperand condition) state (lambda (v1) (MVexpression (rightoperand condition) state (lambda (v2) (return (>= v1 v2)))))))
@@ -65,19 +65,19 @@
 (define MVreturn
   (lambda (expression state return) 
     (cond
-      ((eq? (MVexpression expression state) #t) (return true))
-      ((eq? (MVexpression expression state) #f) (return false))
-      (else (MVexpression expression state)))))
+      ((eq? (MVexpression expression state return) #t) (return true))
+      ((eq? (MVexpression expression state return) #f) (return false))
+      (else (MVexpression expression state return)))))
 
 ;this should return the value of a variable
 (define MVvariable
-  (lambda (variable state return)
+  (lambda (variable state)
     (cond
-      ((eq? variable 'true) (return #t))
-      ((eq? variable 'false) (return #f))
-      ((null? (namelist state)) (return(error 'undeclared-variable)))
-      ((eq? (car (namelist state)) variable) (return (car (valuelist state))))
-      (else (MVvariable variable (return (cons (cdr (namelist state)) (cons (cdr (valuelist state)) '()))))))))
+      ((eq? variable 'true) #t)
+      ((eq? variable 'false) #f)
+      ((null? (namelist state)) (error 'undeclared-variable))
+      ((eq? (car (namelist state)) variable) (car (valuelist state)))
+      (else (MVvariable variable (cons (cdr (namelist state)) (cons (cdr (valuelist state)) '())))))))
                                              
 ;this updates the state after a declaration
 (define MSdeclare
@@ -93,7 +93,7 @@
   (lambda (variable expression state)
     (cond
       ((null? (namelist state)) (error 'undeclared-variable))
-      ((eq? (car (namelist state)) variable) (cons (namelist state) (cons (cons (MVexpression expression state) (cdr (valuelist state))) '() )))
+      ((eq? (car (namelist state)) variable) (cons (namelist state) (cons (cons (MVexpression expression state (lambda (v) v)) (cdr (valuelist state))) '() )))
       (else (cons (cons 
                    (car (namelist state)) 
                    (namelist (MSassign variable expression (append 
@@ -179,13 +179,13 @@
 (interpret "test8.txt")
 (interpret "test9.txt")
 (interpret "test10.txt")
-(interpret "test11.txt")
-(interpret "test12.txt")
-(interpret "test13.txt")
-(interpret "test14.txt")
+;(interpret "test11.txt")
+;(interpret "test12.txt")
+;(interpret "test13.txt")
+;(interpret "test14.txt")
 (interpret "test15.txt")
-(interpret "test16.txt")
-(interpret "test17.txt")
-(interpret "test18.txt")
+;(interpret "test16.txt")
+;(interpret "test17.txt")
+;(interpret "test18.txt")
 
 
