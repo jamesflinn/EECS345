@@ -5,23 +5,24 @@
 
 (define interpret
   (lambda (filename)
-    (interpret-help (parser filename) initial-state (lambda (v) v))))
+    (interpret-help (parser filename) initial-state (lambda (v) v) (lambda (v) v))))
   
 (define interpret-help
-  (lambda (tree state return)
+  (lambda (tree state return break)
     (cond
       ((null? tree) state)
-      ((eq? (identifier tree) 'var) (interpret-help (cdr tree) (MSdeclare (variable tree) (cddar tree) state) return))
-      ((eq? (identifier tree) '=) (interpret-help (cdr tree) (MSassign-layer (variable tree) (expression-stmt tree) state state) return))
+      ((eq? (identifier tree) 'var) (interpret-help (cdr tree) (MSdeclare (variable tree) (cddar tree) state) return break))
+      ((eq? (identifier tree) '=) (interpret-help (cdr tree) (MSassign-layer (variable tree) (expression-stmt tree) state state) return break))
       ((eq? (identifier tree) 'if) (interpret-help (cdr tree) (if (MVcondition (condition-stmt tree) state return)
-                                                                  (interpret-help (cons (then-stmt tree) '()) state return)
+                                                                  (interpret-help (cons (then-stmt tree) '()) state return break)
                                                                   (if (else? (car tree))
-                                                                      (interpret-help (cons (else-stmt tree) '()) state return)
-                                                                      state)) return))
+                                                                      (interpret-help (cons (else-stmt tree) '()) state return break)
+                                                                      state)) return break))
       ((eq? (identifier tree) 'return) (MVreturn (return-stmt tree) state return))
-      ((eq? (identifier tree) 'begin) (interpret-help (cdr tree) (remove-layer (interpret-help (get-stmt-list tree) (new-layer state) return)) return))
-      ((eq? (identifier tree) 'while) (interpret-help (cdr tree) (MSwhile (while-condition tree) (while-body tree) state return) return))
+      ((eq? (identifier tree) 'begin) (interpret-help (cdr tree) (remove-layer (interpret-help (get-stmt-list tree) (new-layer state) return break)) return break))
+      ((eq? (identifier tree) 'while) (interpret-help (cdr tree) (MSwhile (while-condition tree) (while-body tree) state return) return break))
       ((eq? (identifier tree) 'continue) state)
+      ((eq? (identifier tree) 'break) (break state))
       (else (error 'bad-identifier)))))
 
 
@@ -60,7 +61,7 @@
       ((eq? '>= (operator condition)) (MVexpression (leftoperand condition) state (lambda (v1) (MVexpression (rightoperand condition) state (lambda (v2) (return (>= v1 v2)))))))
       ((eq? '< (operator condition)) (MVexpression (leftoperand condition) state (lambda (v1) (MVexpression (rightoperand condition) state (lambda (v2) (return (< v1 v2)))))))
       ((eq? '<= (operator condition)) (MVexpression (leftoperand condition) state (lambda (v1) (MVexpression (rightoperand condition) state (lambda (v2) (return (<= v1 v2)))))))
-      ((eq? '== (operator condition)) (MVexpression (leftoperand condition) state (lambda (v1) (MVexpression (rightoperand condition) state (lambda (v2) (return (eq? v1 '()v2)))))))
+      ((eq? '== (operator condition)) (MVexpression (leftoperand condition) state (lambda (v1) (MVexpression (rightoperand condition) state (lambda (v2) (return (eq? v1 v2)))))))
       ((eq? '!= (operator condition)) (MVexpression (leftoperand condition) state (lambda (v1) (MVexpression (rightoperand condition) state (lambda (v2) (return (not (eq? v1 v2))))))))
       ((eq? '&& (operator condition)) (MVcondition (leftoperand condition) state (lambda (v1) (MVcondition (rightoperand condition) state (lambda (v2) (and v1 v2))))))
       ((eq? '|| (operator condition)) (MVcondition (leftoperand condition) state (lambda (v1) (MVcondition (rightoperand condition) state (lambda (v2) (or v1 v2))))))
@@ -137,9 +138,13 @@
 ;provides the state for a while loop
 (define MSwhile
   (lambda (condition body state return)
-    (cond
-      ((MVcondition condition state return) (MSwhile condition body (interpret-help (cons body '()) state return) return))
-      (else (return state)))))
+    (call/cc
+     (lambda (break)
+       (letrec ((loop (lambda (condition body state return)
+                        (cond
+                          ((MVcondition condition state return) (loop condition body (interpret-help (cons body '()) state return break) return))
+                          (else (return state))))))
+         (loop condition body state return))))))
 
   
 
@@ -218,14 +223,14 @@
 (interpret "test1.txt")
 (interpret "test2.txt")
 (interpret "test3.txt")
-;(interpret "test4.txt")
-;(interpret "test5.txt")
-;(interpret "test6.txt")
-;(interpret "test7.txt")
+(interpret "test4.txt")
+(interpret "test5.txt")
+(interpret "test6.txt")
+(interpret "test7.txt")
 ;(interpret "test8.txt")
 ;(interpret "test9.txt")
 ;(interpret "test10.txt")
-;(interpret "test11.txt")
-;(interpret "test12.txt")
+(interpret "test11.txt")
+(interpret "test12.txt")
 
 
