@@ -12,14 +12,18 @@
     (cond
       ((null? tree) state)
       ((eq? (identifier tree) 'var) (interpret-help (cdr tree) (MSdeclare (variable tree) (cddar tree) state) return))
-      ((eq? (identifier tree) '=) (interpret-help (cdr tree) (MSassign (variable tree) (expression-stmt tree) state) return))
+      ((eq? (identifier tree) '=) (interpret-help (cdr tree) (MSassign (variable tree) (expression-stmt tree) state state) return))
       ((eq? (identifier tree) 'if) (interpret-help (cdr tree) (if (MVcondition (condition-stmt tree) state return)
                                                                   (interpret-help (cons (then-stmt tree) '()) state return)
                                                                   (if (else? (car tree))
                                                                       (interpret-help (cons (else-stmt tree) '()) state return)
                                                                       state)) return))
       ((eq? (identifier tree) 'return) (MVreturn (return-stmt tree) state return))
+      ((eq? (identifier tree) 'begin) (interpret-help (cdr tree) (remove-layer (interpret-help (get-stmt-list tree) (new-layer state) return)) return))
+      ((eq? (identifier tree) 'while) (interpret-help (cdr tree) (MSwhile (while-condition tree) (while-body tree) state return) return))
       (else (error 'bad-identifier)))))
+
+
 
 ;This is gonna return the value of an expression
 (define MVexpression
@@ -55,7 +59,7 @@
       ((eq? '>= (operator condition)) (MVexpression (leftoperand condition) state (lambda (v1) (MVexpression (rightoperand condition) state (lambda (v2) (return (>= v1 v2)))))))
       ((eq? '< (operator condition)) (MVexpression (leftoperand condition) state (lambda (v1) (MVexpression (rightoperand condition) state (lambda (v2) (return (< v1 v2)))))))
       ((eq? '<= (operator condition)) (MVexpression (leftoperand condition) state (lambda (v1) (MVexpression (rightoperand condition) state (lambda (v2) (return (<= v1 v2)))))))
-      ((eq? '== (operator condition)) (MVexpression (leftoperand condition) state (lambda (v1) (MVexpression (rightoperand condition) state (lambda (v2) (return (eq? v1 v2)))))))
+      ((eq? '== (operator condition)) (MVexpression (leftoperand condition) state (lambda (v1) (MVexpression (rightoperand condition) state (lambda (v2) (return (eq? v1 '()v2)))))))
       ((eq? '!= (operator condition)) (MVexpression (leftoperand condition) state (lambda (v1) (MVexpression (rightoperand condition) state (lambda (v2) (return (not (eq? v1 v2))))))))
       ((eq? '&& (operator condition)) (MVcondition (leftoperand condition) state (lambda (v1) (MVcondition (rightoperand condition) state (lambda (v2) (and v1 v2))))))
       ((eq? '|| (operator condition)) (MVcondition (leftoperand condition) state (lambda (v1) (MVcondition (rightoperand condition) state (lambda (v2) (or v1 v2))))))
@@ -75,48 +79,82 @@
     (cond
       ((eq? variable 'true) #t)
       ((eq? variable 'false) #f)
-      ((null? (namelist state)) (error 'undeclared-variable))
-      ((eq? (car (namelist state)) variable) (car (valuelist state)))
-      (else (MVvariable variable (cons (cdr (namelist state)) (cons (cdr (valuelist state)) '())))))))
+      ((null? state) (error 'undeclared-variable))
+      ((null? (namelist (top-layer state))) (MVvariable variable (remove-layer state)))
+      ((eq? (car (namelist (top-layer state))) variable) (car (valuelist (top-layer state))))
+      (else (MVvariable variable (cons (cons (cdr (namelist (top-layer state))) (cons (cdr (valuelist (top-layer state))) '())) (remove-layer state)))))))
                                              
 ;this updates the state after a declaration
 (define MSdeclare
   (lambda (variable expression state)
     (cond
-      ((declared? variable (namelist state)) (error 'redefining))
-      ((null? expression) (cons (cons variable (namelist state)) (cons (cons 'error (valuelist state)) '())))
-      (else (MSassign variable (car expression) (MSdeclare variable '() state))))))
+      ((declared? variable (namelist (top-layer state))) (error 'redefining))
+      ((null? expression) (cons (cons (cons variable (namelist (top-layer state)))
+                                      (cons (cons 'error
+                                                  (valuelist (top-layer state)))
+                                            '()))
+                                (remove-layer state)))
+      (else (MSassign variable (car expression) (MSdeclare variable '() state) state)))))
+
+
 
 ;this updates the state after an assignment
 ;trouble with the else statment
 (define MSassign
-  (lambda (variable expression state)
+  (lambda (variable expression state scope)
     (cond
-      ((null? (namelist state)) (error 'undeclared-variable))
-      ((eq? (car (namelist state)) variable) (cons (namelist state) (cons (cons (MVexpression expression state (lambda (v) v)) (cdr (valuelist state))) '() )))
-      (else (cons (cons 
-                   (car (namelist state)) 
-                   (namelist (MSassign variable expression (append 
-                                                            (cons (cdr (namelist state))  '())
-                                                            (cons (cdr (valuelist state)) '())))))
-                  (cons (cons 
-                         (car (valuelist state)) 
-                         (valuelist (MSassign variable expression (append 
-                                                                   (cons (cdr (namelist state))  '())
-                                                                   (cons (cdr (valuelist state)) '()))))) '())
-                                                                       )))))
+      ((null? state) (error 'undeclared variable)) 
+      ((null? (namelist (top-layer state))) (MSassign variable expression (remove-layer state) scope))
+      ((eq? (car (namelist (top-layer state))) variable) (cons (cons (namelist (top-layer state))
+                                                                     (cons (cons (MVexpression expression scope (lambda (v) v)) 
+                                                                                 (cdr (valuelist (top-layer state)))) 
+                                                                           '()))
+                                                               (remove-layer state)))
+      (else (cons (cons (cons (car (namelist (top-layer state)))
+                              (namelist (top-layer (MSassign variable expression (cons (append (cons (cdr (namelist (top-layer state)))  '())
+                                                                                               (cons (cdr (valuelist (top-layer state))) '()))
+                                                                                       (remove-layer state)) scope))))
+                        (cons (cons (car (valuelist (top-layer state)))
+                                    (valuelist (top-layer (MSassign variable expression (cons (append (cons (cdr (namelist (top-layer state)))  '())
+                                                                                                     (cons (cdr (valuelist (top-layer state))) '()))
+                                                                                             (remove-layer state)) scope))))
+                              '()))
+                  (remove-layer state))))))
+
+(define MSassign
+  (lambda (variable expression state scope)
+    (cond
+      ((null? state) (error 'undeclared variable))
+      ((null? (namelist (top-layer state))) (MSassign variable expression (remove-layer state)
+
+
+;updates the state for a block statement
+(define MSblock
+  (lambda (stmt-list state return)
+    (cond
+      ((null? stmt-list) (return (remove-layer state)))
+      (else (MSblock (cdr stmt-list) state (lambda (v) (MVexpression (car stmt-list)))))
+      )))
+
 
 ;provides the state for a while loop
 (define MSwhile
-  (lambda (condition body return state)
+  (lambda (condition body state return)
     (cond
-      ((MVcondition condition state) (return (MSwhile condition body return (MSblock body state))))
+      ((MVcondition condition state return) (MSwhile condition body (interpret-help (cons body '()) state return) return))
       (else (return state)))))
 
+  
 
 ;ABSTRACTIONS
 ;the empty state
-(define initial-state '(() ()))
+(define initial-state '((() ())))
+
+;layer
+(define layer '(()()))
+
+(define top-layer car)
+
 ; the helper functions to determine where the operator and operands are depending on the 
 (define operator car)
 
@@ -139,7 +177,18 @@
   (lambda (stmt)
     (cadddr (car stmt))))
 (define return-stmt cadar)
+(define while-condition cadar)
+(define while-body caddar)
+(define get-stmt-list cdar)
 
+;removes a layer of the state
+(define remove-layer cdr)
+
+;creates a new layer for the state
+(define new-layer
+  (lambda (state)
+    (cons  layer state)))
+  
 ;this determines if an expression is unary
 (define unary? 
   (lambda (l)
@@ -169,7 +218,7 @@
       ((null? (cdddr stmt)) #f)
       (else #t))))
 
-(interpret "test1.txt")
+;(interpret "test1.txt")
 (interpret "test2.txt")
 (interpret "test3.txt")
 (interpret "test4.txt")
@@ -179,13 +228,8 @@
 (interpret "test8.txt")
 (interpret "test9.txt")
 (interpret "test10.txt")
-;(interpret "test11.txt")
-;(interpret "test12.txt")
-;(interpret "test13.txt")
-;(interpret "test14.txt")
-(interpret "test15.txt")
-(interpret "test16.txt")
-(interpret "test17.txt")
-(interpret "test18.txt")
+(interpret "test11.txt")
+(interpret "test12.txt")
+
 
 
