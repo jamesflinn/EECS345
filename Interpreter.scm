@@ -12,7 +12,7 @@
     (cond
       ((null? tree) state)
       ((eq? (identifier tree) 'var) (interpret-help (cdr tree) (MSdeclare (variable tree) (cddar tree) state) return))
-      ((eq? (identifier tree) '=) (interpret-help (cdr tree) (MSassign (variable tree) (expression-stmt tree) state) return))
+      ((eq? (identifier tree) '=) (interpret-help (cdr tree) (MSassign-layer (variable tree) (expression-stmt tree) state state) return))
       ((eq? (identifier tree) 'if) (interpret-help (cdr tree) (if (MVcondition (condition-stmt tree) state return)
                                                                   (interpret-help (cons (then-stmt tree) '()) state return)
                                                                   (if (else? (car tree))
@@ -94,32 +94,33 @@
                                                   (valuelist (top-layer state)))
                                             '()))
                                 (remove-layer state)))
-      (else (cons (MSassign variable (car expression) (top-layer (MSdeclare variable '() state))) (remove-layer state))))))
+      (else (cons (MSassign variable (car expression) (top-layer (MSdeclare variable '() state)) state) (remove-layer state))))))
 
 (define MSassign-layer
-  (lambda (variable expression state)
+  (lambda (variable expression state layers)
     (cond
       ((null? state) (error 'undeclared-variable))
-      ((not (MSassign variable expression (top-layer state))) (cons (top-layer state) (MSassign-layer variable expression (cdr state)))) ; variable not found in layer, go to next layer
-      (else (cons (MSassign variable expression (top-layer state)) (cdr state))))))
+      ((not (MSassign variable expression (top-layer state) layers)) (cons (top-layer state) (MSassign-layer variable expression (cdr state) layers))) ; variable not found in layer, go to next layer
+      (else (cons (MSassign variable expression (top-layer state) layers) (cdr state)))))) ; variable is in layer
 
 ;this updates the state after an assignment
 ;trouble with the else statment
 (define MSassign
-  (lambda (variable expression state)
+  (lambda (variable expression state layers)
     (cond
       ((null? (namelist state)) #f)
-      ((eq? (car (namelist state)) variable) (cons (namelist state) (cons (cons (MVexpression expression state (lambda (v) v)) (cdr (valuelist state))) '() )))
+      ((not (declared? variable (namelist state))) #f)   ; used to see if the variable is declared in this list, if it isn't go back to MSassign-layer
+      ((eq? (car (namelist state)) variable) (cons (namelist state) (cons (cons (MVexpression expression layers (lambda (v) v)) (cdr (valuelist state))) '() )))
       (else (cons (cons 
                    (car (namelist state)) 
                    (namelist (MSassign variable expression (append 
                                                             (cons (cdr (namelist state))  '())
-                                                            (cons (cdr (valuelist state)) '())))))
+                                                            (cons (cdr (valuelist state)) '())) layers)))
                   (cons (cons 
                          (car (valuelist state)) 
                          (valuelist (MSassign variable expression (append 
                                                                    (cons (cdr (namelist state))  '())
-                                                                   (cons (cdr (valuelist state)) '()))))) '())
+                                                                   (cons (cdr (valuelist state)) '())) layers))) '())
                   )))))
 
 
@@ -214,7 +215,7 @@
       (else #t))))
 
 (interpret "test1.txt")
-;(interpret "test2.txt")
+(interpret "test2.txt")
 ;(interpret "test3.txt")
 ;(interpret "test4.txt")
 ;(interpret "test5.txt")
@@ -225,6 +226,5 @@
 ;(interpret "test10.txt")
 ;(interpret "test11.txt")
 ;(interpret "test12.txt")
-;(MSassign-layer 'x '5 '((() ()) ((x) (error)) (() ())))
 
 
