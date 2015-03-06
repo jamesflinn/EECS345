@@ -21,6 +21,7 @@
       ((eq? (identifier tree) 'return) (MVreturn (return-stmt tree) state return))
       ((eq? (identifier tree) 'begin) (interpret-help (cdr tree) (remove-layer (interpret-help (get-stmt-list tree) (new-layer state) return)) return))
       ((eq? (identifier tree) 'while) (interpret-help (cdr tree) (MSwhile (while-condition tree) (while-body tree) state return) return))
+      ((eq? (identifier tree) 'continue) state)
       (else (error 'bad-identifier)))))
 
 
@@ -216,7 +217,7 @@
 
 (interpret "test1.txt")
 (interpret "test2.txt")
-;(interpret "test3.txt")
+(interpret "test3.txt")
 ;(interpret "test4.txt")
 ;(interpret "test5.txt")
 ;(interpret "test6.txt")
