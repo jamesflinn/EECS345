@@ -121,12 +121,6 @@
                               '()))
                   (remove-layer state))))))
 
-(define MSassign
-  (lambda (variable expression state scope)
-    (cond
-      ((null? state) (error 'undeclared variable))
-      ((null? (namelist (top-layer state))) (MSassign variable expression (remove-layer state)
-
 
 ;updates the state for a block statement
 (define MSblock
