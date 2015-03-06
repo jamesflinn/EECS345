@@ -3,10 +3,12 @@
 
 (load "simpleParser.scm")
 
+;interprets some code from a file
 (define interpret
   (lambda (filename)
     (interpret-help (parser filename) initial-state (lambda (v) v) (lambda (v) v))))
   
+;helper function that inteprets a parse tree
 (define interpret-help
   (lambda (tree state return break)
     (cond
@@ -24,8 +26,6 @@
       ((eq? (identifier tree) 'continue) state)
       ((eq? (identifier tree) 'break) (break state))
       (else (error 'bad-identifier)))))
-
-
 
 ;This is gonna return the value of an expression
 (define MVexpression
@@ -98,6 +98,7 @@
                                 (remove-layer state)))
       (else (cons (MSassign variable (car expression) (top-layer (MSdeclare variable '() state)) state) (remove-layer state))))))
 
+;helper function that deals with the layers
 (define MSassign-layer
   (lambda (variable expression state layers)
     (cond
@@ -125,16 +126,6 @@
                                                                    (cons (cdr (valuelist state)) '())) layers))) '())
                   )))))
 
-
-;updates the state for a block statement
-(define MSblock
-  (lambda (stmt-list state return)
-    (cond
-      ((null? stmt-list) (return (remove-layer state)))
-      (else (MSblock (cdr stmt-list) state (lambda (v) (MVexpression (car stmt-list)))))
-      )))
-
-
 ;provides the state for a while loop
 (define MSwhile
   (lambda (condition body state return)
@@ -145,8 +136,6 @@
                           ((MVcondition condition state return) (loop condition body (interpret-help (cons body '()) state return break) return))
                           (else (return state))))))
          (loop condition body state return))))))
-
-  
 
 ;ABSTRACTIONS
 ;the empty state
@@ -219,18 +208,3 @@
     (cond
       ((null? (cdddr stmt)) #f)
       (else #t))))
-
-(interpret "test1.txt")
-(interpret "test2.txt")
-(interpret "test3.txt")
-(interpret "test4.txt")
-(interpret "test5.txt")
-(interpret "test6.txt")
-(interpret "test7.txt")
-;(interpret "test8.txt")
-;(interpret "test9.txt")
-;(interpret "test10.txt")
-(interpret "test11.txt")
-(interpret "test12.txt")
-
-
