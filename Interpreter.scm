@@ -24,7 +24,7 @@
       ((eq? (identifier tree) 'begin) (interpret-help (cdr tree) (remove-layer (interpret-help (get-stmt-list tree) (new-layer state) return break)) return break))
       ((eq? (identifier tree) 'while) (interpret-help (cdr tree) (MSwhile (while-condition tree) (while-body tree) state return) return break))
       ((eq? (identifier tree) 'continue) state)
-      ((eq? (identifier tree) 'break) (break state))
+      ((eq? (identifier tree) 'break) (break (remove-layer state)))
       (else (error 'bad-identifier)))))
 
 ;This is gonna return the value of an expression
@@ -83,7 +83,7 @@
       ((eq? variable 'false) #f)
       ((null? state) (error 'undeclared-variable))
       ((null? (namelist (top-layer state))) (MVvariable variable (remove-layer state)))
-      ((eq? (car (namelist (top-layer state))) variable) (car (valuelist (top-layer state))))
+      ((eq? (car (namelist (top-layer state))) variable) (unbox (car (valuelist (top-layer state)))))
       (else (MVvariable variable (cons (cons (cdr (namelist (top-layer state))) (cons (cdr (valuelist (top-layer state))) '())) (remove-layer state)))))))
                                              
 ;this updates the state after a declaration
@@ -92,7 +92,7 @@
     (cond
       ((declared? variable (namelist (top-layer state))) (error 'redefining))
       ((null? expression) (cons (cons (cons variable (namelist (top-layer state)))
-                                      (cons (cons 'error
+                                      (cons (cons (box 'error)
                                                   (valuelist (top-layer state)))
                                             '()))
                                 (remove-layer state)))
@@ -103,7 +103,7 @@
   (lambda (variable expression state layers)
     (cond
       ((null? state) (error 'undeclared-variable))
-      ((not (MSassign variable expression (top-layer state) layers)) (cons (top-layer state) (MSassign-layer variable expression (cdr state) layers))) ; variable not found in layer, go to next layer
+      ((or (null? (namelist (top-layer state))) (not (declared? variable (namelist (top-layer state))))) (cons (top-layer state) (MSassign-layer variable expression (cdr state) layers)))
       (else (cons (MSassign variable expression (top-layer state) layers) (cdr state)))))) ; variable is in layer
 
 ;this updates the state after an assignment
@@ -113,18 +113,19 @@
     (cond
       ((null? (namelist state)) #f)
       ((not (declared? variable (namelist state))) #f)   ; used to see if the variable is declared in this list, if it isn't go back to MSassign-layer
-      ((eq? (car (namelist state)) variable) (cons (namelist state) (cons (cons (MVexpression expression layers (lambda (v) v)) (cdr (valuelist state))) '() )))
-      (else (cons (cons 
-                   (car (namelist state)) 
-                   (namelist (MSassign variable expression (append 
-                                                            (cons (cdr (namelist state))  '())
-                                                            (cons (cdr (valuelist state)) '())) layers)))
-                  (cons (cons 
-                         (car (valuelist state)) 
-                         (valuelist (MSassign variable expression (append 
-                                                                   (cons (cdr (namelist state))  '())
-                                                                   (cons (cdr (valuelist state)) '())) layers))) '())
-                  )))))
+      ((eq? (car (namelist state)) variable) (cons (namelist state) (cons (cons (begin (set-box! (car (valuelist state)) (MVexpression expression layers (lambda (v) v))) (car (valuelist state))) 
+                                                                                (cdr (valuelist state))) '() )))
+      (else ((lambda (assign)
+               (cons (cons
+                      (car (namelist state))
+                      (namelist assign))
+                     (cons (cons
+                            (car (valuelist state))
+                            (valuelist assign)) '()))) 
+             (MSassign variable expression (append
+                                            (cons (cdr (namelist state))  '())
+                                            (cons (cdr (valuelist state)) '())) layers))))))
+                                                                
 
 ;provides the state for a while loop
 (define MSwhile
@@ -208,3 +209,16 @@
     (cond
       ((null? (cdddr stmt)) #f)
       (else #t))))
+
+(interpret "test1.txt")
+(interpret "test2.txt")
+(interpret "test3.txt")
+(interpret "test4.txt")
+(interpret "test5.txt")
+(interpret "test6.txt")
+(interpret "test7.txt")
+;(interpret "test8.txt")
+;(interpret "test9.txt")
+;(interpret "test10.txt")
+(interpret "test11.txt")
+(interpret "test12.txt")
