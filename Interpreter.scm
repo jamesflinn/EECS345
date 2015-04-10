@@ -12,7 +12,7 @@
 (define interpret-help
   (lambda (tree state return break)
     (cond
-      ((number? state) state)
+      ((or (number? state) (eq? 'true state) (eq? 'false state)) state)
       ((and (null? tree) (declared? 'main (namelist (top-layer state))) (MVfunction 'main '() state return)))
       ((null? tree) state)
       ((eq? (identifier tree) 'var) (interpret-help (cdr tree) (MSdeclare (variable tree) (cddar tree) state) return break))
@@ -30,14 +30,15 @@
       ((eq? (identifier tree) 'continue) state)
       ((eq? (identifier tree) 'break) (break (remove-layer state)))
       ((eq? (identifier tree) 'function) (interpret-help (cdr tree) (MSfunction (function-name tree) (param-list tree) (function-body tree) state) return break))
-      ;((eq? (identifier tree) 'funcall) (interpret-help (cdr tree) (
-      (else (error 'bad-identifier)))))
+      ((eq? (identifier tree) 'funcall) (interpret-help (cdr tree) (begin (MVfunction (fun-call-name (car tree)) (fun-call-params (car tree)) state (lambda (v) v)) state) return break))
+      (else (error "bad-identifier" (identifier tree)))))) 
 
 ;This is gonna return the value of an expression
 (define MVexpression
   (lambda (expression state return)
        (cond
          ((number? expression) (return expression))
+         ((boolean? expression) (return expression))
          ((variable? expression) (return (MVvariable expression state)))
          ((function? expression) (return (MVfunction (fun-call-name expression) (fun-call-params expression) state (lambda (v) v))))
          ((eq? '+ (operator expression))(MVexpression (leftoperand expression) state (lambda (v1) (MVexpression (rightoperand expression) state (lambda (v2) (return (+ v1 v2)))))))
@@ -70,9 +71,9 @@
       ((eq? '<= (operator condition)) (MVexpression (leftoperand condition) state (lambda (v1) (MVexpression (rightoperand condition) state (lambda (v2) (return (<= v1 v2)))))))
       ((eq? '== (operator condition)) (MVexpression (leftoperand condition) state (lambda (v1) (MVexpression (rightoperand condition) state (lambda (v2) (return (eq? v1 v2)))))))
       ((eq? '!= (operator condition)) (MVexpression (leftoperand condition) state (lambda (v1) (MVexpression (rightoperand condition) state (lambda (v2) (return (not (eq? v1 v2))))))))
-      ((eq? '&& (operator condition)) (MVcondition (leftoperand condition) state (lambda (v1) (MVcondition (rightoperand condition) state (lambda (v2) (and v1 v2))))))
-      ((eq? '|| (operator condition)) (MVcondition (leftoperand condition) state (lambda (v1) (MVcondition (rightoperand condition) state (lambda (v2) (or v1 v2))))))
-      (else (error condition)))))
+      ((eq? '&& (operator condition)) (MVexpression (leftoperand condition) state (lambda (v1) (MVexpression (rightoperand condition) state (lambda (v2) (and v1 v2))))))
+      ((eq? '|| (operator condition)) (MVexpression (leftoperand condition) state (lambda (v1) (MVexpression (rightoperand condition) state (lambda (v2) (or v1 v2))))))
+      (else (error "incorrect operator" (operator condition))))))
 
 ;This should return the value of a return statement
 (define MVreturn
@@ -110,7 +111,7 @@
 (define MSassign-layer 
   (lambda (variable expression state layers)
     (cond
-      ((null? state) (error 'undeclared-variable))
+      ((null? state) (error "undeclared-variable:" variable))
       ((or (null? (namelist (top-layer state))) (not (declared? variable (namelist (top-layer state))))) (cons (top-layer state) (MSassign-layer variable expression (cdr state) layers)))
       (else (cons (MSassign variable expression (top-layer state) layers) (cdr state)))))) ; variable is in layer
 
@@ -191,7 +192,8 @@
 (define addparams
   (lambda (param-names param-values state)
     (cond
-      ((null? param-names) state)
+      ((and (null? param-names) (null? param-values)) state)
+      ((null? param-names) (error "too many parameters"))
       ((null? param-values) (error "not enough parameters")) 
       (else (addparams (cdr param-names) (cdr param-values) (MSdeclare (car param-names) (cons (car param-values) '()) state))))))
 
@@ -267,6 +269,7 @@
 (define variable?
   (lambda (var)
     (cond
+      ((boolean? var) #f)
       ((not (list? var)) #t)
       (else #f))))
 
@@ -302,4 +305,9 @@
 (interpret "3test9.txt")
 (interpret "3test10.txt")
 (interpret "3test11.txt")
-(interpret "3test12.txt")
+;(interpret "3test12.txt")
+(interpret "3test13.txt")
+(interpret "3test14.txt")
+(interpret "3test15.txt")
+(interpret "3test16.txt")
+;(interpret "3test17.txt")
