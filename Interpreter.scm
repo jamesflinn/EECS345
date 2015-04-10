@@ -26,7 +26,7 @@
       ((eq? (identifier tree) 'while) (interpret-help (cdr tree) (MSwhile (while-condition tree) (while-body tree) state return) return break))
       ((eq? (identifier tree) 'continue) state)
       ((eq? (identifier tree) 'break) (break (remove-layer state)))
-      ((eq? (identifier tree) 'function) (interpret-help (cdr tree) (MSfunction (function-name tree) (param-list tree) (function-body tree) state return) return break))
+      ((eq? (identifier tree) 'function) (interpret-help (cdr tree) (MSfunction (function-name tree) (param-list tree) (function-body tree) state) return break))
       ;((eq? (identifier tree) 'funcall) (interpret-help (cdr tree) (
       (else (error 'bad-identifier)))))
 
@@ -48,7 +48,7 @@
          ((eq? '/ (operator expression)) (MVexpression (leftoperand expression) state (lambda (v1)
                                                    (MVexpression (rightoperand expression) state (lambda (v2)(return (quotient v1 v2)))))))
          ((eq? '% (operator expression)) (MVexpression (leftoperand expression) state (lambda (v1)
-                                                    (MVexpression (rightoperand expression) state (lambda (v2) (return (remainder v1 v2)))))))
+                                                    (MVexpression (rightoperand expression) state (lambda (v2) (return (remainder v1 v2))))))) 
         (else (return (MVcondition expression state return)))
        )))
 
@@ -103,7 +103,7 @@
       (else (cons (MSassign variable (car expression) (top-layer (MSdeclare variable '() state)) state) (remove-layer state))))))
 
 ;helper function that deals with the layers
-(define MSassign-layer
+(define MSassign-layer 
   (lambda (variable expression state layers)
     (cond
       ((null? state) (error 'undeclared-variable))
@@ -113,7 +113,7 @@
 ;this updates the state after an assignment
 ;trouble with the else statment
 (define MSassign
-  (lambda (variable expression state layers)
+  (lambda (variable expression state layers) 
     (cond
       ((null? (namelist state)) #f)
       ((not (declared? variable (namelist state))) #f)   ; used to see if the variable is declared in this list, if it isn't go back to MSassign-layer
@@ -145,36 +145,36 @@
 ;provides the value for a function call
 (define MVfunction
   (lambda (name values state return)
-    (interpret-help (closure-body (MVvariable name state))                     ;function body 
-                    (addparams (closure-params (MVvariable name state)) values (poop name 
+    (interpret-help (closure-body (MVvariable name state))                   
+                    (addparams (closure-params (MVvariable name state)) (evaluate-params values state return) (make-closure-state name 
                                                                                      (closure-params (MVvariable name state)) 
                                                                                      (closure-body (MVvariable name state)) 
                                                                                      (closure-state (MVvariable name state)) 
-                                                                                     return) 
-                               return)           ;function-state 
-                    return 
+                                                                                     ))      
+                    return
                     'error)))
+
+(define evaluate-params
+  (lambda (values state return)
+    (cond
+      ((null? values) (return '()))
+      (else (evaluate-params (cdr values) state (lambda (v) (return (cons (MVexpression (car values) state return) v))))))))
     
 ;provides the state after a function call
 (define MSfunction
-  (lambda (name paramlist body state return)
-    (return
+  (lambda (name paramlist body state)
      (cons (cons (cons name
                        (namelist (top-layer state)))                                                ;the old namelist
                  (cons (cons (box (list paramlist body (new-layer state)))
                              (valuelist (top-layer state)))
                        '()))                                              ;the old valuelist
            (remove-layer state))                                                                    ;rest of the layers of the state
-    )))
+    ))
 
 ;used to return the state we will execute the body of a function in 
-;NEEDS A NEW NAME
-;NEEDS A NEW NAME
-;NEEDS A NEW NAME
-;NEEDS A NEW NAME
-(define poop
-  (lambda (name paramlist body state return) 
-    (MSfunction name paramlist body state return)))
+(define make-closure-state
+  (lambda (name paramlist body state) 
+    (MSfunction name paramlist body state)))
 
 ;ABSTRACTIONS
 ;the empty state
@@ -269,11 +269,11 @@
 
 ;adds parameters to the state
 (define addparams
-  (lambda (param-names param-values state return)
+  (lambda (param-names param-values state)
     (cond
-      ((null? param-names) (return state))
-      ((null? param-values) (error "not enough parameters"))
-      (else (addparams (cdr param-names) (cdr param-values) state (lambda (v) (return (MSdeclare (car param-names) (cons (car param-values) '()) v))))))))
+      ((null? param-names) state)
+      ((null? param-values) (error "not enough parameters")) 
+      (else (addparams (cdr param-names) (cdr param-values) (MSdeclare (car param-names) (car param-values) state))))))
                                                               
 
 ;(interpret "test1.txt")
