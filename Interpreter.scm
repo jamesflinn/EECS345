@@ -145,20 +145,20 @@
 ;provides the value for a function call
 (define MVfunction
   (lambda (name values state return)
-    (interpret-help (closure-body (MVvariable name state))                   
-                    (addparams (closure-params (MVvariable name state)) (evaluate-params values state return) (make-closure-state name 
+    (return (interpret-help (closure-body (MVvariable name state))                   
+                    (addparams (closure-params (MVvariable name state)) (evaluate-params values state (lambda (v1) v1)) (make-closure-state name 
                                                                                      (closure-params (MVvariable name state)) 
                                                                                      (closure-body (MVvariable name state)) 
                                                                                      (closure-state (MVvariable name state)) 
                                                                                      ))      
                     return
-                    'error)))
+                    'error))))
 
 (define evaluate-params
   (lambda (values state return)
     (cond
       ((null? values) (return '()))
-      (else (evaluate-params (cdr values) state (lambda (v) (return (cons (MVexpression (car values) state return) v))))))))
+      (else (evaluate-params (cdr values) state (lambda (v) (return (cons (MVexpression (car values) state (lambda (v1) v1)) v))))))))
     
 ;provides the state after a function call
 (define MSfunction
@@ -175,6 +175,14 @@
 (define make-closure-state
   (lambda (name paramlist body state) 
     (MSfunction name paramlist body state)))
+
+;adds parameters to the state
+(define addparams
+  (lambda (param-names param-values state)
+    (cond
+      ((null? param-names) state)
+      ((null? param-values) (error "not enough parameters")) 
+      (else (addparams (cdr param-names) (cdr param-values) (MSdeclare (car param-names) (cons (car param-values) '()) state))))))
 
 ;ABSTRACTIONS
 ;the empty state
@@ -267,13 +275,7 @@
       ((null? (cdddr stmt)) #f)
       (else #t))))
 
-;adds parameters to the state
-(define addparams
-  (lambda (param-names param-values state)
-    (cond
-      ((null? param-names) state)
-      ((null? param-values) (error "not enough parameters")) 
-      (else (addparams (cdr param-names) (cdr param-values) (MSdeclare (car param-names) (car param-values) state))))))
+
                                                               
 
 ;(interpret "test1.txt")
