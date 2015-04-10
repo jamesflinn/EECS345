@@ -12,15 +12,18 @@
 (define interpret-help
   (lambda (tree state return break)
     (cond
+      ((number? state) state)
       ((and (null? tree) (declared? 'main (namelist (top-layer state))) (MVfunction 'main '() state return)))
       ((null? tree) state)
       ((eq? (identifier tree) 'var) (interpret-help (cdr tree) (MSdeclare (variable tree) (cddar tree) state) return break))
       ((eq? (identifier tree) '=) (interpret-help (cdr tree) (MSassign-layer (variable tree) (expression-stmt tree) state state) return break))
-      ((eq? (identifier tree) 'if) (interpret-help (cdr tree) (if (MVcondition (condition-stmt tree) state return)
-                                                                  (interpret-help (cons (then-stmt tree) '()) state return break)
-                                                                  (if (else? (car tree))
-                                                                      (interpret-help (cons (else-stmt tree) '()) state return break)
-                                                                      state)) return break))
+      ((eq? (identifier tree) 'if) (interpret-help (cdr tree) 
+                                                   (if (MVcondition (condition-stmt tree) state return)
+                                                       (interpret-help (cons (then-stmt tree) '()) state return break)
+                                                       (if (else? (car tree))
+                                                           (interpret-help (cons (else-stmt tree) '()) state return break)
+                                                           state))
+                                                   return break))
       ((eq? (identifier tree) 'return) (MVreturn (return-stmt tree) state return))
       ((eq? (identifier tree) 'begin) (interpret-help (cdr tree) (remove-layer (interpret-help (get-stmt-list tree) (new-layer state) return break)) return break))
       ((eq? (identifier tree) 'while) (interpret-help (cdr tree) (MSwhile (while-condition tree) (while-body tree) state return) return break))
@@ -94,7 +97,7 @@
 (define MSdeclare
   (lambda (variable expression state)
     (cond
-      ((declared? variable (namelist (top-layer state))) (error 'redefining))
+      ((declared? variable (namelist (top-layer state))) (error "redefining" variable))
       ((null? expression) (cons (cons (cons variable (namelist (top-layer state)))
                                       (cons (cons (box 'error)
                                                   (valuelist (top-layer state)))
@@ -145,14 +148,19 @@
 ;provides the value for a function call
 (define MVfunction
   (lambda (name values state return)
-    (return (interpret-help (closure-body (MVvariable name state))                   
-                    (addparams (closure-params (MVvariable name state)) (evaluate-params values state (lambda (v1) v1)) (make-closure-state name 
-                                                                                     (closure-params (MVvariable name state)) 
-                                                                                     (closure-body (MVvariable name state)) 
-                                                                                     (closure-state (MVvariable name state)) 
-                                                                                     ))      
-                    return
-                    'error))))
+    (cond
+      ((eq? name 'main) return (interpret-help (closure-body (MVvariable name state))
+                                               state
+                                               return
+                                               'error))
+      (return (interpret-help (closure-body (MVvariable name state))                   
+                              (addparams (closure-params (MVvariable name state)) (evaluate-params values state (lambda (v1) v1)) (make-closure-state name 
+                                                                                                                                                      (closure-params (MVvariable name state)) 
+                                                                                                                                                      (closure-body (MVvariable name state)) 
+                                                                                                                                                      (closure-state (MVvariable name state)) 
+                                                                                                                                                      ))      
+                              return
+                              'error)))))
 
 (define evaluate-params
   (lambda (values state return)
@@ -164,11 +172,11 @@
 (define MSfunction
   (lambda (name paramlist body state)
      (cons (cons (cons name
-                       (namelist (top-layer state)))                                                ;the old namelist
+                       (namelist (top-layer state)))
                  (cons (cons (box (list paramlist body (new-layer state)))
                              (valuelist (top-layer state)))
-                       '()))                                              ;the old valuelist
-           (remove-layer state))                                                                    ;rest of the layers of the state
+                       '()))
+           (remove-layer state)) 
     ))
 
 ;used to return the state we will execute the body of a function in 
@@ -275,25 +283,10 @@
       ((null? (cdddr stmt)) #f)
       (else #t))))
 
-
-                                                              
-
-;(interpret "test1.txt")
-;(interpret "test2.txt")
-;(interpret "test3.txt")
-;(interpret "test4.txt")
-;(interpret "test5.txt")
-;(interpret "test6.txt")
-;(interpret "test7.txt")
-;(interpret "test8.txt")
-;(interpret "test9.txt")
-;(interpret "test10.txt")
-;(interpret "test11.txt")
-;(interpret "test12.txt")
-
-;(interpret "3test1.txt")
-;(interpret "3test2.txt")
-;(interpret "3test3.txt")
+  
+(interpret "3test1.txt")
+(interpret "3test2.txt")
+(interpret "3test3.txt")
 (interpret "3test4.txt")
 (interpret "3test5.txt")
 (interpret "3test6.txt")
