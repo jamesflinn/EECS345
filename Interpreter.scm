@@ -39,7 +39,7 @@
        (cond
          ((number? expression) (return expression))
          ((variable? expression) (return (MVvariable expression state)))
-         ((function? expression) (return (MVfunction (fun-call-name expression) (fun-call-params expression) state return)))
+         ((function? expression) (return (MVfunction (fun-call-name expression) (fun-call-params expression) state (lambda (v) v))))
          ((eq? '+ (operator expression))(MVexpression (leftoperand expression) state (lambda (v1) (MVexpression (rightoperand expression) state (lambda (v2) (return (+ v1 v2)))))))
          ((eq? '- (operator expression)) 
                (cond
@@ -291,11 +291,11 @@
       (else #t))))
 
   
-;(interpret "3test1.txt")
-;(interpret "3test2.txt")
-;(interpret "3test3.txt")
-;(interpret "3test4.txt")
-;(interpret "3test5.txt")
+(interpret "3test1.txt")
+(interpret "3test2.txt")
+(interpret "3test3.txt")
+(interpret "3test4.txt")
+(interpret "3test5.txt")
 (interpret "3test6.txt")
 (interpret "3test7.txt")
 (interpret "3test8.txt")
