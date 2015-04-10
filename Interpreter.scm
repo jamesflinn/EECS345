@@ -76,11 +76,12 @@
 
 ;This should return the value of a return statement
 (define MVreturn
-  (lambda (expression state return) 
-    (cond
-      ((eq? (MVexpression expression state return) #t) (return 'true))
-      ((eq? (MVexpression expression state return) #f) (return 'false))
-      (else (MVexpression expression state return)))))
+  (lambda (expression state return)
+    ((lambda (result)
+      (cond
+        ((eq? result #t) (return 'true))
+        ((eq? result #f) (return 'false))
+        (else result))) (MVexpression expression state return))))
 
 ;this should return the value of a variable
 (define MVvariable
@@ -120,8 +121,10 @@
     (cond
       ((null? (namelist state)) #f)
       ((not (declared? variable (namelist state))) #f)   ; used to see if the variable is declared in this list, if it isn't go back to MSassign-layer
-      ((eq? (car (namelist state)) variable) (cons (namelist state) (cons (cons (begin (set-box! (car (valuelist state)) (MVexpression expression layers (lambda (v) v))) (car (valuelist state))) 
-                                                                                (cdr (valuelist state))) '() )))
+      ((eq? (car (namelist state)) variable) (cons (namelist state) 
+                                                   (cons (cons (begin (set-box! (car (valuelist state)) (MVexpression expression layers (lambda (v) v))) (car (valuelist state))) 
+                                                                                (cdr (valuelist state))) 
+                                                                          '() )))
       (else ((lambda (assign)
                (cons (cons
                       (car (namelist state))
@@ -149,10 +152,10 @@
 (define MVfunction
   (lambda (name values state return)
     (cond
-      ((eq? name 'main) return (interpret-help (closure-body (MVvariable name state))
-                                               state
+      ((eq? name 'main) (return (interpret-help (closure-body (MVvariable name state))
+                                               (closure-state (MVvariable name state))
                                                return
-                                               'error))
+                                               'error)))
       (return (interpret-help (closure-body (MVvariable name state))                   
                               (addparams (closure-params (MVvariable name state)) (evaluate-params values state (lambda (v1) v1)) (make-closure-state name 
                                                                                                                                                       (closure-params (MVvariable name state)) 
@@ -242,7 +245,11 @@
 (define fun-call-params cddr)
 
 ;removes a layer of the state
-(define remove-layer cdr)
+(define remove-layer 
+  (lambda (state)
+    (cond
+      ((pair? state) (cdr state))
+      (else state))))
 
 ;creates a new layer for the state
 (define new-layer
@@ -284,11 +291,11 @@
       (else #t))))
 
   
-(interpret "3test1.txt")
-(interpret "3test2.txt")
-(interpret "3test3.txt")
-(interpret "3test4.txt")
-(interpret "3test5.txt")
+;(interpret "3test1.txt")
+;(interpret "3test2.txt")
+;(interpret "3test3.txt")
+;(interpret "3test4.txt")
+;(interpret "3test5.txt")
 (interpret "3test6.txt")
 (interpret "3test7.txt")
 (interpret "3test8.txt")
