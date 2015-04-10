@@ -1,7 +1,7 @@
 ;Anthony Dario, Anjana Rao, James Flinn
 ;Interpreter Project
 
-(load "simpleParser.scm")
+(load "functionParser.scm")
 
 ;interprets some code from a file
 (define interpret
@@ -12,6 +12,7 @@
 (define interpret-help
   (lambda (tree state return break)
     (cond
+      ((and (null? tree) (declared? 'main (namelist (top-layer state))) (MVfunction 'main '() state return)))
       ((null? tree) state)
       ((eq? (identifier tree) 'var) (interpret-help (cdr tree) (MSdeclare (variable tree) (cddar tree) state) return break))
       ((eq? (identifier tree) '=) (interpret-help (cdr tree) (MSassign-layer (variable tree) (expression-stmt tree) state state) return break))
@@ -25,6 +26,8 @@
       ((eq? (identifier tree) 'while) (interpret-help (cdr tree) (MSwhile (while-condition tree) (while-body tree) state return) return break))
       ((eq? (identifier tree) 'continue) state)
       ((eq? (identifier tree) 'break) (break (remove-layer state)))
+      ((eq? (identifier tree) 'function) (interpret-help (cdr tree) (MSfunction (function-name tree) (param-list tree) (function-body tree) state return) return break))
+      ;((eq? (identifier tree) 'funcall) (interpret-help (cdr tree) (
       (else (error 'bad-identifier)))))
 
 ;This is gonna return the value of an expression
@@ -33,6 +36,7 @@
        (cond
          ((number? expression) (return expression))
          ((variable? expression) (return (MVvariable expression state)))
+         ((function? expression) (return (MVfunction (fun-call-name expression) (fun-call-params expression) state return)))
          ((eq? '+ (operator expression))(MVexpression (leftoperand expression) state (lambda (v1) (MVexpression (rightoperand expression) state (lambda (v2) (return (+ v1 v2)))))))
          ((eq? '- (operator expression)) 
                (cond
@@ -81,7 +85,7 @@
     (cond
       ((eq? variable 'true) #t)
       ((eq? variable 'false) #f)
-      ((null? state) (error 'undeclared-variable))
+      ((null? state) (error "undeclared-variable:" variable))
       ((null? (namelist (top-layer state))) (MVvariable variable (remove-layer state)))
       ((eq? (car (namelist (top-layer state))) variable) (unbox (car (valuelist (top-layer state)))))
       (else (MVvariable variable (cons (cons (cdr (namelist (top-layer state))) (cons (cdr (valuelist (top-layer state))) '())) (remove-layer state)))))))
@@ -137,6 +141,40 @@
                           ((MVcondition condition state return) (loop condition body (interpret-help (cons body '()) state return break) return))
                           (else (return state))))))
          (loop condition body state return))))))
+    
+;provides the value for a function call
+(define MVfunction
+  (lambda (name values state return)
+    (interpret-help (closure-body (MVvariable name state))                     ;function body 
+                    (addparams (closure-params (MVvariable name state)) values (poop name 
+                                                                                     (closure-params (MVvariable name state)) 
+                                                                                     (closure-body (MVvariable name state)) 
+                                                                                     (closure-state (MVvariable name state)) 
+                                                                                     return) 
+                               return)           ;function-state 
+                    return 
+                    'error)))
+    
+;provides the state after a function call
+(define MSfunction
+  (lambda (name paramlist body state return)
+    (return
+     (cons (cons (cons name
+                       (namelist (top-layer state)))                                                ;the old namelist
+                 (cons (cons (box (list paramlist body (new-layer state)))
+                             (valuelist (top-layer state)))
+                       '()))                                              ;the old valuelist
+           (remove-layer state))                                                                    ;rest of the layers of the state
+    )))
+
+;used to return the state we will execute the body of a function in 
+;NEEDS A NEW NAME
+;NEEDS A NEW NAME
+;NEEDS A NEW NAME
+;NEEDS A NEW NAME
+(define poop
+  (lambda (name paramlist body state return) 
+    (MSfunction name paramlist body state return)))
 
 ;ABSTRACTIONS
 ;the empty state
@@ -172,6 +210,20 @@
 (define while-condition cadar)
 (define while-body caddar)
 (define get-stmt-list cdar)
+(define function-name cadar)
+(define param-list caddar)
+(define function-body 
+  (lambda (stmt)
+    (cadddr (car stmt))))
+
+;function closure stuff
+(define closure-params car)
+(define closure-body cadr)
+(define closure-state caddr)
+
+;function call stuff
+(define fun-call-name cadr)
+(define fun-call-params cddr)
 
 ;removes a layer of the state
 (define remove-layer cdr)
@@ -203,6 +255,11 @@
       ((eq? var (car varnames )) #t)
       (else (declared? var (cdr varnames))))))
 
+;determines if an expression is a function
+(define function?
+  (lambda (expr)
+    (eq? (car expr) 'funcall)))
+
 ; return true if if stmt has an else
 (define else?
   (lambda (stmt)
@@ -210,15 +267,37 @@
       ((null? (cdddr stmt)) #f)
       (else #t))))
 
-(interpret "test1.txt")
-(interpret "test2.txt")
-(interpret "test3.txt")
-(interpret "test4.txt")
-(interpret "test5.txt")
-(interpret "test6.txt")
-(interpret "test7.txt")
+;adds parameters to the state
+(define addparams
+  (lambda (param-names param-values state return)
+    (cond
+      ((null? param-names) (return state))
+      ((null? param-values) (error "not enough parameters"))
+      (else (addparams (cdr param-names) (cdr param-values) state (lambda (v) (return (MSdeclare (car param-names) (cons (car param-values) '()) v))))))))
+                                                              
+
+;(interpret "test1.txt")
+;(interpret "test2.txt")
+;(interpret "test3.txt")
+;(interpret "test4.txt")
+;(interpret "test5.txt")
+;(interpret "test6.txt")
+;(interpret "test7.txt")
 ;(interpret "test8.txt")
 ;(interpret "test9.txt")
 ;(interpret "test10.txt")
-(interpret "test11.txt")
-(interpret "test12.txt")
+;(interpret "test11.txt")
+;(interpret "test12.txt")
+
+;(interpret "3test1.txt")
+;(interpret "3test2.txt")
+;(interpret "3test3.txt")
+(interpret "3test4.txt")
+(interpret "3test5.txt")
+(interpret "3test6.txt")
+(interpret "3test7.txt")
+(interpret "3test8.txt")
+(interpret "3test9.txt")
+(interpret "3test10.txt")
+(interpret "3test11.txt")
+(interpret "3test12.txt")
