@@ -92,8 +92,14 @@
       ((eq? variable 'false) #f)
       ((null? state) (error "undeclared-variable:" variable))
       ((null? (namelist (top-layer state))) (MVvariable variable (remove-layer state)))
-      ((eq? (car (namelist (top-layer state))) variable) (unbox (car (valuelist (top-layer state)))))
-      (else (MVvariable variable (cons (cons (cdr (namelist (top-layer state))) (cons (cdr (valuelist (top-layer state))) '())) (remove-layer state)))))))
+      ((eq? (car (namelist (top-layer state))) variable) (get-var (length (cdr (namelist (top-layer state)))) (valuelist (top-layer state))));(unbox (car (valuelist (top-layer state)))))
+      (else (MVvariable variable (cons (cons (cdr (namelist (top-layer state))) (cons (valuelist (top-layer state)) '())) (remove-layer state)))))))
+  
+(define get-var
+  (lambda (index valuelist)
+    (cond
+      ((zero? index) (unbox (car valuelist)))
+      (else (get-var (- index 1) (cdr valuelist))))))
                                              
 ;this updates the state after a declaration
 (define MSdeclare
@@ -104,6 +110,7 @@
                                       (cons (cons (box 'error)
                                                   (valuelist (top-layer state)))
                                             '()))
+                                      ;(cons (append (valuelist (top-layer state)) (list (box 'error))) '()))
                                 (remove-layer state)))
       (else (cons (MSassign variable (car expression) (top-layer (MSdeclare variable '() state)) state) (remove-layer state))))))
 
@@ -123,9 +130,9 @@
       ((null? (namelist state)) #f)
       ((not (declared? variable (namelist state))) #f)   ; used to see if the variable is declared in this list, if it isn't go back to MSassign-layer
       ((eq? (car (namelist state)) variable) (cons (namelist state) 
-                                                   (cons (cons (begin (set-box! (car (valuelist state)) (MVexpression expression layers (lambda (v) v))) (car (valuelist state))) 
-                                                                                (cdr (valuelist state))) 
-                                                                          '() )))
+                                                   (cons (append (cdr (valuelist state)) 
+                                                                 (list (begin (set-box! (car (valuelist state)) (MVexpression expression layers (lambda (v) v))) (car (valuelist state)))))
+                                                   '() )))
       (else ((lambda (assign)
                (cons (cons
                       (car (namelist state))
@@ -177,9 +184,10 @@
   (lambda (name paramlist body state)
      (cons (cons (cons name
                        (namelist (top-layer state)))
-                 (cons (cons (box (list paramlist body (new-layer state)))
-                             (valuelist (top-layer state)))
-                       '()))
+                 ;(cons (cons (box (list paramlist body (new-layer state)))
+                 ;            (valuelist (top-layer state)))
+                 ;      '()))
+                 (cons (append (valuelist (top-layer state)) (list (box (list paramlist body (new-layer state))))) '()))
            (remove-layer state)) 
     ))
 
@@ -196,6 +204,14 @@
       ((null? param-names) (error "too many parameters"))
       ((null? param-values) (error "not enough parameters")) 
       (else (addparams (cdr param-names) (cdr param-values) (MSdeclare (car param-names) (cons (car param-values) '()) state))))))
+
+(define create-class
+  (lambda (parent-class field-env method-env field-names)
+    (list parent-class field-env method-env field-names)))
+
+(define create-instance
+  (lambda (class-name field-values)
+    (list class-name field-values)))
 
 ;ABSTRACTIONS
 ;the empty state
@@ -293,7 +309,7 @@
       ((null? (cdddr stmt)) #f)
       (else #t))))
 
-  
+;(MVvariable 'x (MSdeclare 'z '(15) (MSdeclare 'y '(10) (MSdeclare 'x '(5) initial-state))))
 (interpret "3test1.txt")
 (interpret "3test2.txt")
 (interpret "3test3.txt")
