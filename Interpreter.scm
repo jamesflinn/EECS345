@@ -107,10 +107,10 @@
     (cond
       ((declared? variable (namelist (top-layer state))) (error "redefining" variable))
       ((null? expression) (cons (cons (cons variable (namelist (top-layer state)))
-                                      (cons (cons (box 'error)
-                                                  (valuelist (top-layer state)))
-                                            '()))
-                                      ;(cons (append (valuelist (top-layer state)) (list (box 'error))) '()))
+                                      ;(cons (cons (box 'error)
+                                      ;            (valuelist (top-layer state)))
+                                      ;      '()))
+                                      (list (append (valuelist (top-layer state)) (list (box 'error)))))
                                 (remove-layer state)))
       (else (cons (MSassign variable (car expression) (top-layer (MSdeclare variable '() state)) state) (remove-layer state))))))
 
@@ -124,7 +124,7 @@
 
 ;this updates the state after an assignment
 ;trouble with the else statment
-(define MSassign
+(define MSassign2
   (lambda (variable expression state layers) 
     (cond
       ((null? (namelist state)) #f)
@@ -143,6 +143,30 @@
              (MSassign variable expression (append
                                             (cons (cdr (namelist state))  '())
                                             (cons (cdr (valuelist state)) '())) layers))))))
+
+(define MSassign
+  (lambda (variable expression state layers)
+    (cond
+      ((null? (namelist state)) #f)
+      ((not (declared? variable (namelist state))) #f)
+      ((eq? (car (namelist state)) variable) (append (list (namelist state)) (list (assign-var (length (cdr (namelist state))) expression (valuelist state) layers))))
+      (else ((lambda (assign)
+               (cons (cons
+                      (car (namelist state))
+                      (namelist assign))
+                     (cons
+                      (valuelist assign) '()))) 
+             (MSassign variable expression (append
+                                            (cons (cdr (namelist state))  '())
+                                            (cons (valuelist state) '())) layers))))))
+
+(define assign-var
+  (lambda (index expression valuelist layers)
+    (cond
+      ((zero? index) (begin (set-box! (car valuelist) (MVexpression expression layers (lambda (v) v))) valuelist))
+      (else (cons (car valuelist) (assign-var (- index 1) expression (cdr valuelist) layers))))))
+
+
                                                                 
 
 ;provides the state for a while loop
@@ -310,20 +334,20 @@
       (else #t))))
 
 ;(MVvariable 'x (MSdeclare 'z '(15) (MSdeclare 'y '(10) (MSdeclare 'x '(5) initial-state))))
-(interpret "3test1.txt")
-(interpret "3test2.txt")
-(interpret "3test3.txt")
-(interpret "3test4.txt")
-(interpret "3test5.txt")
-(interpret "3test6.txt")
-(interpret "3test7.txt")
-(interpret "3test8.txt")
-(interpret "3test9.txt")
-(interpret "3test10.txt")
-(interpret "3test11.txt")
+;(interpret "3test1.txt")
+;(interpret "3test2.txt")
+;(interpret "3test3.txt")
+;(interpret "3test4.txt")
+;(interpret "3test5.txt")
+;(interpret "3test6.txt")
+;(interpret "3test7.txt")
+;(interpret "3test8.txt")
+;(interpret "3test9.txt")
+;(interpret "3test10.txt")
+;(interpret "3test11.txt")
 ;(interpret "3test12.txt")
-(interpret "3test13.txt")
-(interpret "3test14.txt")
-(interpret "3test15.txt")
-(interpret "3test16.txt")
+;(interpret "3test13.txt")
+;(interpret "3test14.txt")
+;(interpret "3test15.txt")
+;(interpret "3test16.txt")
 ;(interpret "3test17.txt")
