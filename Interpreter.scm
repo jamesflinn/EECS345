@@ -57,21 +57,21 @@
     (cond
       ((number? expression) (return expression))
       ((boolean? expression) (return expression))
-      ((variable? expression) (return (MVvariable expression state)))
-      ((function? expression) (return (MVfunction (fun-call-name expression) (fun-call-params expression) state (lambda (v) v))))
-      ((eq? '+ (operator expression))(MVexpression (leftoperand expression) state (lambda (v1) (MVexpression (rightoperand expression) state (lambda (v2) (return (+ v1 v2)))))))
+      ((variable? expression) (return (MVvariable expression state class-env instance)))
+      ((function? expression) (return (MVfunction (fun-call-name expression) (fun-call-params expression) state (lambda (v) v) class-env instance)))
+      ((eq? '+ (operator expression)) (MVexpression (leftoperand expression) state (lambda (v1) (MVexpression (rightoperand expression) state (lambda (v2) (return (+ v1 v2)))) class-env instance) class-env instance))
       ((eq? '- (operator expression)) 
        (cond
-         ((unary? expression) (MVexpression (leftoperand expression) state (lambda (v) (return (* v -1)))))
+         ((unary? expression) (MVexpression (leftoperand expression) state (lambda (v) (return (* v -1))) class-env instance))
          (else (MVexpression (leftoperand expression) state (lambda (v1) 
-                                                              (MVexpression (rightoperand expression) state (lambda (v2) (return (- v1 v2)))))))))
+                                                              (MVexpression (rightoperand expression) state (lambda (v2) (return (- v1 v2))) class-env instance)) class-env instance))))
       ((eq? '* (operator expression)) (MVexpression (leftoperand expression) state (lambda (v1)
-                                                                                     (MVexpression (rightoperand expression) state (lambda (v2) (return (* v1 v2)))))))
+                                                                                     (MVexpression (rightoperand expression) state (lambda (v2) (return (* v1 v2))) class-env instance)) class-env instance))
       ((eq? '/ (operator expression)) (MVexpression (leftoperand expression) state (lambda (v1)
-                                                                                     (MVexpression (rightoperand expression) state (lambda (v2)(return (quotient v1 v2)))))))
+                                                                                     (MVexpression (rightoperand expression) state (lambda (v2)(return (quotient v1 v2))) class-env instance)) class-env instance))
       ((eq? '% (operator expression)) (MVexpression (leftoperand expression) state (lambda (v1)
-                                                                                     (MVexpression (rightoperand expression) state (lambda (v2) (return (remainder v1 v2))))))) 
-      (else (return (MVcondition expression state return)))
+                                                                                     (MVexpression (rightoperand expression) state (lambda (v2) (return (remainder v1 v2))) class-env instance)) class-env instance)) 
+      (else (return (MVcondition expression state return class-env instance)))
       )))
 
 ;This should return the value of a condition
@@ -100,7 +100,7 @@
        (cond
          ((eq? result #t) (return 'true))
          ((eq? result #f) (return 'false))
-         (else result))) (MVexpression expression state return))))
+         (else result))) (MVexpression expression state return class-env instance))))
 
 ;this should return the value of a variable
 (define MVvariable
@@ -131,15 +131,15 @@
                                       ;      '()))
                                       (list (append (valuelist (top-layer state)) (list (box 'error)))))
                                 (remove-layer state)))
-      (else (cons (MSassign variable (car expression) (top-layer (MSdeclare variable '() state)) state) (remove-layer state))))))
+      (else (cons (MSassign variable (car expression) (top-layer (MSdeclare variable '() state)) state class-env instance) (remove-layer state))))))
 
 ;helper function that deals with the layers
 (define MSassign-layer 
   (lambda (variable expression state layers class-env instance)
     (cond
       ((null? state) (error "undeclared-variable:" variable))
-      ((or (null? (namelist (top-layer state))) (not (declared? variable (namelist (top-layer state))))) (cons (top-layer state) (MSassign-layer variable expression (cdr state) layers)))
-      (else (cons (MSassign variable expression (top-layer state) layers) (cdr state)))))) ; variable is in layer
+      ((or (null? (namelist (top-layer state))) (not (declared? variable (namelist (top-layer state))))) (cons (top-layer state) (MSassign-layer variable expression (cdr state) layers class-env instance)))
+      (else (cons (MSassign variable expression (top-layer state) layers class-env instance) (cdr state)))))) ; variable is in layer
 
 ;this updates the state after an assignment
 (define MSassign
@@ -156,13 +156,13 @@
                       (valuelist assign) '()))) 
              (MSassign variable expression (append
                                             (cons (cdr (namelist state))  '())
-                                            (cons (valuelist state) '())) layers))))))
+                                            (cons (valuelist state) '())) layers class-env instance))))))
 
 ; assigns the variable in the valuelist
 (define assign-var
   (lambda (index expression valuelist layers class-env instance)
     (cond
-      ((zero? index) (begin (set-box! (car valuelist) (MVexpression expression layers (lambda (v) v))) valuelist))
+      ((zero? index) (begin (set-box! (car valuelist) (MVexpression expression layers (lambda (v) v) class-env instance)) valuelist))
       (else (cons (car valuelist) (assign-var (- index 1) expression (cdr valuelist) layers))))))
 
 
