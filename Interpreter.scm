@@ -8,13 +8,23 @@
   (lambda (filename)
     (interpret-help (parser filename) initial-state (lambda (v) v) (lambda (v) v))))
 
+;interprets all the classes and puts them in the state
+;when finished, runs the main method
 (define interpret-global
-  (lambda (tree state return break)
+  (lambda (tree state)
     (cond
       ((null? tree) state) ; DO SOMETHING OTHER THAN THIS
       ((eq? (identifier tree) 'class) (MSclass (class-name tree) (class-parent tree) (class-body tree) state))
       ((else (error "should only be a class"))))))
-                                       
+            
+;interprets all static variable and function declarations and puts them in the state
+(define interpret-static
+  (lambda (tree field-env function-env)
+    (cond
+      ((null? tree) (list field-env function-env))
+      ((eq? (identifier tree) 'static-var) (interpret-static (cdr tree) (MSdeclare (variable tree) (cddar tree) field-env) function-env))
+      ((eq? (identifier tree) 'static-function) (interpret-static (cdr tree) field-env (MSfunction (function-name tree) (param-list tree) (function-body tree) function-env)))
+      ((else (error "unidentified identifier" (identifier tree)))))))
 
 ;helper function that inteprets a parse tree
 (define interpret-help
@@ -23,7 +33,6 @@
       ((or (number? state) (eq? 'true state) (eq? 'false state)) state)
       ((and (null? tree) (declared? 'main (namelist (top-layer state))) (MVfunction 'main '() state return)))
       ((null? tree) state)
-      ((eq? (identifier tree) 'static-var) (interpret-help (cdr tree) (MSdeclare (variable tree) (cddar tree) state) return break))
       ((eq? (identifier tree) 'var) (interpret-help (cdr tree) (MSdeclare (variable tree) (cddar tree) state) return break))
       ((eq? (identifier tree) '=) (interpret-help (cdr tree) (MSassign-layer (variable tree) (expression-stmt tree) state state) return break))
       ((eq? (identifier tree) 'if) (interpret-help (cdr tree)
@@ -38,14 +47,13 @@
       ((eq? (identifier tree) 'while) (interpret-help (cdr tree) (MSwhile (while-condition tree) (while-body tree) state return) return break))
       ((eq? (identifier tree) 'continue) state)
       ((eq? (identifier tree) 'break) (break (remove-layer state)))
-      ((eq? (identifier tree) 'static-function) (interpret-help (cdr tree) (MSfunction (function-name tree) (param-list tree) (function-body tree) state) return break))
       ((eq? (identifier tree) 'function) (interpret-help (cdr tree) (MSfunction (function-name tree) (param-list tree) (function-body tree) state) return break))
       ((eq? (identifier tree) 'funcall) (interpret-help (cdr tree) (begin (MVfunction (fun-call-name (car tree)) (fun-call-params (car tree)) state (lambda (v) v)) state) return break))
       (else (error "bad-identifier" (identifier tree)))))) 
 
 ;This is gonna return the value of an expression
 (define MVexpression
-  (lambda (expression state return class-type instance)
+  (lambda (expression state return)
        (cond
          ((number? expression) (return expression))
          ((boolean? expression) (return expression))
@@ -68,7 +76,7 @@
 
 ;This should return the value of a condition
 (define MVcondition
-  (lambda (condition state return class-type instance)
+  (lambda (condition state return)
     (cond
       ((number? condition) (return condition))
       ((variable? condition) (return (MVvariable condition state)))
@@ -87,7 +95,7 @@
 
 ;This should return the value of a return statement
 (define MVreturn
-  (lambda (expression state return class-type instance)
+  (lambda (expression state return)
     ((lambda (result)
       (cond
         ((eq? result #t) (return 'true))
@@ -96,7 +104,7 @@
 
 ;this should return the value of a variable
 (define MVvariable
-  (lambda (variable state class-type instance)
+  (lambda (variable state)
     (cond
       ((eq? variable 'true) #t)
       ((eq? variable 'false) #f)
@@ -113,7 +121,7 @@
                                              
 ;this updates the state after a declaration
 (define MSdeclare
-  (lambda (variable expression state class-type instance)
+  (lambda (variable expression state)
     (cond
       ((declared? variable (namelist (top-layer state))) (error "redefining" variable))
       ((null? expression) (cons (cons (cons variable (namelist (top-layer state)))
@@ -126,7 +134,7 @@
 
 ;helper function that deals with the layers
 (define MSassign-layer 
-  (lambda (variable expression state layers class-type instance)
+  (lambda (variable expression state layers)
     (cond
       ((null? state) (error "undeclared-variable:" variable))
       ((or (null? (namelist (top-layer state))) (not (declared? variable (namelist (top-layer state))))) (cons (top-layer state) (MSassign-layer variable expression (cdr state) layers)))
@@ -157,14 +165,24 @@
       (else (cons (car valuelist) (assign-var (- index 1) expression (cdr valuelist) layers))))))
 
 ; this returns the state after all the class is scanned through
-; should run interpret-help on the body
+; right now only does static functions
 (define MSclass
   (lambda (name parent body state)
-    '()))
+    (add-to-state name
+                  (create-class parent
+                                (field-env (interpret-static body initial-state initial-state))
+                                (function-env (interpret-static body initial-state initial-state))
+                                '())
+                  state)))
+
+; returns a list in the form of (parent static-field-env method-env instance-field-names)
+(define create-class
+  (lambda (parent-class field-env method-env field-names)
+    (list parent-class field-env method-env field-names)))
 
 ;provides the state for a while loop
 (define MSwhile
-  (lambda (condition body state return class-type instance)
+  (lambda (condition body state return)
     (call/cc
      (lambda (break)
        (letrec ((loop (lambda (condition body state return)
@@ -175,7 +193,7 @@
     
 ;provides the value for a function call
 (define MVfunction
-  (lambda (name values state return class-type instance)
+  (lambda (name values state return)
     (cond
       ((eq? name 'main) (return (interpret-help (closure-body (MVvariable name state))
                                                (closure-state (MVvariable name state))
@@ -198,7 +216,7 @@
     
 ;provides the state after a function call
 (define MSfunction
-  (lambda (name paramlist body state class-type instance)
+  (lambda (name paramlist body state)
      (cons (cons (cons name
                        (namelist (top-layer state)))
                  (cons (append (valuelist (top-layer state)) (list (box (list paramlist body (new-layer state))))) '()))
@@ -219,13 +237,16 @@
       ((null? param-values) (error "not enough parameters")) 
       (else (addparams (cdr param-names) (cdr param-values) (MSdeclare (car param-names) (cons (car param-values) '()) state))))))
 
-(define create-class
-  (lambda (parent-class field-env method-env field-names)
-    (list parent-class field-env method-env field-names)))
-
 (define create-instance
   (lambda (class-name field-values)
     (list class-name field-values)))
+
+; adds a name and a value to the given state
+(define add-to-state
+  (lambda (name value state)
+    (cons (cons (cons name (namelist (top-layer state)))
+          (list (append (valuelist (top-layer state)) (list value))))
+          (cdr state))))
 
 ;ABSTRACTIONS
 ;the empty state
@@ -246,6 +267,10 @@
 ;these helper functions grab the variable name list or the value list from the state
 (define namelist car)
 (define valuelist cadr)
+
+;these help when creating classes
+(define field-env caar)
+(define function-env caadr)
 
 ;these identify parse tree elements
 (define identifier caar)
