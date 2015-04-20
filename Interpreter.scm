@@ -13,17 +13,22 @@
 (define interpret-global
   (lambda (tree state classname)
     (cond
-      ((null? tree) (MVfunction 'main '() (list (class-method-env (MVvariable classname state '() '()))) (lambda (v) v) '() '(instance)))
+      ((null? tree) (MVfunction 'main '() (list (class-method-env (MVvariable classname state temp-class temp-instance))) (lambda (v) v) temp-class temp-instance))
       ((eq? (identifier tree) 'class) (interpret-global (cdr tree) (MSclass (class-name tree) (class-parent tree) (class-body tree) state) classname))
       ((else (error "should only be a class"))))))
 
 ;interprets all static variable and function declarations and puts them in the state
 (define interpret-static
-  (lambda (tree field-env function-env class-env instance)
+  (lambda (tree field-env function-env state class-env instance)
     (cond
       ((null? tree) (list field-env function-env))
-      ((eq? (identifier tree) 'static-var) (interpret-static (cdr tree) (MSdeclare (variable tree) (cddar tree) field-env class-env instance) function-env))
-      ((eq? (identifier tree) 'static-function) (interpret-static (cdr tree) field-env (MSfunction (function-name tree) (param-list tree) (function-body tree) function-env class-env instance) class-env instance))
+      ((eq? (identifier tree) 'static-var) (interpret-static (cdr tree) 
+                                                             (MSdeclare (variable tree) (cddar tree) field-env class-env instance) 
+                                                             function-env 
+                                                             state 
+                                                             class-env 
+                                                             instance))
+      ((eq? (identifier tree) 'static-function) (interpret-static (cdr tree) field-env (MSfunction (function-name tree) (param-list tree) (function-body tree) state class-env instance) state class-env instance))
       ((else (error "unidentified identifier" (identifier tree)))))))
 
 ;helper function that inteprets a parse tree
@@ -57,7 +62,9 @@
     (cond
       ((number? expression) (return expression))
       ((boolean? expression) (return expression))
-      ((variable? expression) (return (MVvariable expression state class-env instance)))
+      ((eq? 'true expression) (return #t))
+      ((eq? 'false expression) (return #f))
+      ((variable? expression) (return (MVenv-var expression state class-env instance)))
       ((function? expression) (return (MVfunction (fun-call-name expression) (fun-call-params expression) state (lambda (v) v) class-env instance)))
       ((eq? '+ (operator expression)) (MVexpression (leftoperand expression) state (lambda (v1) (MVexpression (rightoperand expression) state (lambda (v2) (return (+ v1 v2)))) class-env instance) class-env instance))
       ((eq? '- (operator expression)) 
@@ -79,9 +86,9 @@
   (lambda (condition state return class-env instance)
     (cond
       ((number? condition) (return condition))
-      ((variable? condition) (return (MVvariable condition state class-env instance)))
       ((eq? 'true condition ) (return #t))
       ((eq? 'false condition ) (return #f))
+      ((variable? condition) (return (MVenv-var condition state class-env instance)))
       ((eq? '! (operator condition)) (MVcondition (leftoperand condition) state (lambda (v) (return (not v))) class-env instance))
       ((eq? '> (operator condition)) (MVexpression (leftoperand condition) state (lambda (v1) (MVexpression (rightoperand condition) state (lambda (v2) (return (> v1 v2))) class-env instance)) class-env instance))
       ((eq? '>= (operator condition)) (MVexpression (leftoperand condition) state (lambda (v1) (MVexpression (rightoperand condition) state (lambda (v2) (return (>= v1 v2)))class-env instance))class-env instance))
@@ -109,7 +116,7 @@
       ((eq? variable 'true) #t)
       ((eq? variable 'false) #f)
       ((null? state) (error "undeclared-variable:" variable))
-      ((null? (namelist (top-layer state))) (MVvariable variable (remove-layer state)))
+      ((null? (namelist (top-layer state))) (MVvariable variable (remove-layer state) class-env instance))
       ((and (pair? variable) (eq? (car variable) 'dot)) (MVdot (caddr variable) (get-class-dot (cadr variable) state) (get-instance-dot (cadr variable) state))) 
       ((eq? (car (namelist (top-layer state))) variable) (get-var (length (cdr (namelist (top-layer state)))) (valuelist (top-layer state))))
       (else (MVvariable variable (cons (cons (cdr (namelist (top-layer state))) (cons (valuelist (top-layer state)) '())) (remove-layer state)))))))
@@ -131,7 +138,7 @@
                                       ;      '()))
                                       (list (append (valuelist (top-layer state)) (list (box 'error)))))
                                 (remove-layer state)))
-      (else (cons (MSassign variable (car expression) (top-layer (MSdeclare variable '() state)) state class-env instance) (remove-layer state))))))
+      (else (cons (MSassign variable (car expression) (top-layer (MSdeclare variable '() state class-env instance)) state class-env instance) (remove-layer state))))))
 
 ;helper function that deals with the layers
 (define MSassign-layer 
@@ -147,7 +154,7 @@
     (cond
       ((null? (namelist state)) #f)
       ((not (declared? variable (namelist state))) #f)
-      ((eq? (car (namelist state)) variable) (append (list (namelist state)) (list (assign-var (length (cdr (namelist state))) expression (valuelist state) layers))))
+      ((eq? (car (namelist state)) variable) (append (list (namelist state)) (list (assign-var (length (cdr (namelist state))) expression (valuelist state) layers class-env instance))))
       (else ((lambda (assign)
                (cons (cons
                       (car (namelist state))
@@ -173,8 +180,8 @@
   (lambda (name parent body state)
     (add-to-state name
                   (box (create-class parent
-                                     (field-env (interpret-static body initial-state initial-state '() '(instance)))
-                                     (function-env (interpret-static body initial-state initial-state '() '(instance)))
+                                     (field-env (interpret-static body initial-state initial-state state temp-class temp-instance))
+                                     (function-env (interpret-static body initial-state initial-state state temp-class temp-instance))
                                      '())) ; instance variable names will go here
                   state)))
 
@@ -196,8 +203,8 @@
   (lambda (variable state class-env instance)
     (cond
       ((null? state) (MVclass-var variable class-env instance))
-      ((declared? (namelist (top-layer state))) (MVvariable variable state))
-      (else (MVenv-var (cdr state) class-env instance)))))
+      ((declared? variable (namelist (top-layer state))) (MVvariable variable state class-env instance))
+      (else (MVenv-var variable (cdr state) class-env instance)))))
 
 ; gets the value of a dot expression
 (define MVdot
@@ -319,6 +326,9 @@
 (define instance-field-values cadr)
 (define instance-class-name car)
 
+(define temp-class '(() (()()) (()()) ()))
+(define temp-instance '(() ()))
+
 ;these identify parse tree elements
 (define identifier caar)
 (define variable cadar)
@@ -377,6 +387,8 @@
   (lambda (var)
     (cond
       ((boolean? var) #f)
+      ((eq? var 'true) #f)
+      ((eq? var 'false) #f)
       ((not (list? var)) #t)
       (else #f))))
 
