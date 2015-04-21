@@ -38,7 +38,7 @@
 
 ;helper function that inteprets a parse tree
 (define interpret-help
-  (lambda (tree state return break class-env instance)
+  (lambda (tree state return break throw class-env instance)
     (cond
       ((or (number? state) (eq? 'true state) (eq? 'false state)) state)
       ((and (null? tree) (declared? 'main (namelist (top-layer state))) (MVfunction 'main '() state return class-env instance)))
@@ -59,6 +59,8 @@
       ((eq? (identifier tree) 'break) (break (remove-layer state)))
       ((eq? (identifier tree) 'function) (interpret-help (cdr tree) (MSfunction (function-name tree) (param-list tree) (function-body tree) state class-env instance) return break class-env instance))
       ((eq? (identifier tree) 'funcall) (interpret-help (cdr tree) (begin (MVfunction (fun-call-name (car tree)) (fun-call-params (car tree)) state (lambda (v) v) class-env instance) state) return break class-env instance))
+      ((eq? (identifier tree) 'try) (interpret-help (cdr tree) (interpret-help (try-body tree) return break 
+                                                                               (lambda (v) (interpret-help (catch-body tree) (add-to-state 'e v state) return break class-env instance))
       (else (error "bad-identifier" (identifier tree)))))) 
 
 ;This is gonna return the value of an expression
