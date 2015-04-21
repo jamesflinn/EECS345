@@ -13,25 +13,27 @@
 (define interpret-global
   (lambda (tree state classname)
     (cond
-      ((null? tree) (MVfunction 'main '() (list (class-method-env (MVvariable classname state temp-class temp-instance)) state) (lambda (v) v) temp-class temp-instance))
-      ((eq? (identifier tree) 'class) (interpret-global (cdr tree) (MSclass (class-name tree) (class-parent tree) (class-body tree) state) classname))
+      ((null? tree) (MVfunction 'main '() (list (class-method-env (MVvariable classname state temp-class temp-instance)) state) (lambda (v) v) (lambda (v) v) temp-class temp-instance))
+      ((eq? (identifier tree) 'class) (interpret-global (cdr tree) (MSclass (class-name tree) (class-parent tree) (class-body tree) state (lambda (v) v)) classname))
       ((else (error "should only be a class"))))))
 
 ;interprets all static variable and function declarations and puts them in the state
 (define interpret-static
-  (lambda (tree field-env function-env state class-env instance)
+  (lambda (tree field-env function-env state throw class-env instance)
     (cond
       ((null? tree) (list field-env function-env))
       ((eq? (identifier tree) 'static-var) (interpret-static (cdr tree) 
-                                                             (MSdeclare (variable tree) (cddar tree) field-env class-env instance) 
+                                                             (MSdeclare (variable tree) (cddar tree) field-env throw class-env instance) 
                                                              function-env 
-                                                             (MSdeclare (variable tree) (cddar tree) state class-env instance)
+                                                             (MSdeclare (variable tree) (cddar tree) state throw class-env instance)
+                                                             throw 
                                                              class-env 
                                                              instance))
       ((eq? (identifier tree) 'static-function) (interpret-static (cdr tree) 
                                                                   field-env 
                                                                   (MSfunction (function-name tree) (param-list tree) (function-body tree) state class-env instance) 
                                                                   (MSfunction (function-name tree) (param-list tree) (function-body tree) state class-env instance) 
+                                                                  throw 
                                                                   class-env 
                                                                   instance))
       ((else (error "unidentified identifier" (identifier tree)))))))
@@ -41,31 +43,39 @@
   (lambda (tree state return break throw class-env instance)
     (cond
       ((or (number? state) (eq? 'true state) (eq? 'false state)) state)
-      ((and (null? tree) (declared? 'main (namelist (top-layer state))) (MVfunction 'main '() state return class-env instance)))
+      ((and (null? tree) (declared? 'main (namelist (top-layer state))) (MVfunction 'main '() state return throw class-env instance)))
       ((null? tree) state)
-      ((eq? (identifier tree) 'var) (interpret-help (cdr tree) (MSdeclare (variable tree) (cddar tree) state) return break class-env instance) class-env instance)
-      ((eq? (identifier tree) '=) (interpret-help (cdr tree) (MSassign-layer (variable tree) (expression-stmt tree) state state) return break class-env instance) class-env instance)
+      ((eq? (identifier tree) 'var) (interpret-help (cdr tree) (MSdeclare (variable tree) (cddar tree) state throw class-env instance) return break throw class-env instance))
+      ((eq? (identifier tree) '=) (interpret-help (cdr tree) (MSassign-layer (variable tree) (expression-stmt tree) state state throw class-env instance) return break throw class-env instance))
       ((eq? (identifier tree) 'if) (interpret-help (cdr tree)
-                                                   (if (MVcondition (condition-stmt tree) state return class-env instance)
-                                                       (interpret-help (cons (then-stmt tree) '()) state return break class-env instance)
+                                                   (if (MVcondition (condition-stmt tree) state return throw class-env instance)
+                                                       (interpret-help (cons (then-stmt tree) '()) state return break throw class-env instance)
                                                        (if (else? (car tree))
-                                                           (interpret-help (cons (else-stmt tree) '()) state return break class-env instance)
+                                                           (interpret-help (cons (else-stmt tree) '()) state return break throw class-env instance)
                                                            state))
-                                                   return break class-env instance))
-      ((eq? (identifier tree) 'return) (MVreturn (return-stmt tree) state return  class-env instance))
-      ((eq? (identifier tree) 'begin) (interpret-help (cdr tree) (remove-layer (interpret-help (get-stmt-list tree) (new-layer state) return break class-env instance)) return break class-env instance))
-      ((eq? (identifier tree) 'while) (interpret-help (cdr tree) (MSwhile (while-condition tree) (while-body tree) state return class-env instance) return break class-env instance))
+                                                   return break throw class-env instance))
+      ((eq? (identifier tree) 'return) (MVreturn (return-stmt tree) state return throw class-env instance))
+      ((eq? (identifier tree) 'begin) (interpret-help (cdr tree) (remove-layer (interpret-help (get-stmt-list tree) (new-layer state) return break throw class-env instance)) return break throw class-env instance))
+      ((eq? (identifier tree) 'while) (interpret-help (cdr tree) (MSwhile (while-condition tree) (while-body tree) state return class-env instance) return break throw class-env instance))
       ((eq? (identifier tree) 'continue) state)
       ((eq? (identifier tree) 'break) (break (remove-layer state)))
-      ((eq? (identifier tree) 'function) (interpret-help (cdr tree) (MSfunction (function-name tree) (param-list tree) (function-body tree) state class-env instance) return break class-env instance))
-      ((eq? (identifier tree) 'funcall) (interpret-help (cdr tree) (begin (MVfunction (fun-call-name (car tree)) (fun-call-params (car tree)) state (lambda (v) v) class-env instance) state) return break class-env instance))
-      ((eq? (identifier tree) 'try) (interpret-help (cdr tree) (interpret-help (try-body tree) return break 
-                                                                               (lambda (v) (interpret-help (catch-body tree) (add-to-state 'e v state) return break class-env instance))
+      ((eq? (identifier tree) 'function) (interpret-help (cdr tree) (MSfunction (function-name tree) (param-list tree) (function-body tree) state class-env instance) return break throw class-env instance))
+      ((eq? (identifier tree) 'funcall) (interpret-help (cdr tree) (begin (MVfunction (fun-call-name (car tree)) (fun-call-params (car tree)) state (lambda (v) v) throw class-env instance) state) return break throw class-env instance))
+      ((eq? (identifier tree) 'try) (interpret-help (cdr tree) (interpret-help (finally-body tree) 
+                                                                               (interpret-help (try-body tree) state (lambda (v) (return (interpret-help (finally-body tree) v return break throw class-env instance))) break 
+                                                                               (lambda (v) (interpret-help (catch-body tree) (add-to-state 'e (box v) state) return break throw class-env instance)) class-env instance)
+                                                                               return
+                                                                               break
+                                                                               throw
+                                                                               class-env
+                                                                               instance)
+                                                                               return break throw class-env instance))
+      ((eq? (identifier tree) 'throw) (throw (MVexpression (cadar tree) state return throw class-env instance)))
       (else (error "bad-identifier" (identifier tree)))))) 
 
 ;This is gonna return the value of an expression
 (define MVexpression
-  (lambda (expression state return class-env instance)
+  (lambda (expression state return throw class-env instance)
     (cond
       ((number? expression) (return expression))
       ((boolean? expression) (return expression))
@@ -73,49 +83,49 @@
       ((eq? 'false expression) (return #f))
       ((variable? expression) (return (MVenv-var expression state class-env instance)))
       ((eq? 'dot (operator expression)) (MVdot (caddr expression) state (get-class-dot (cadr expression) state class-env instance) (get-instance-dot (cadr expression) state)))
-      ((function? expression) (return (MVfunction (fun-call-name expression) (fun-call-params expression) state (lambda (v) v) class-env instance)))
-      ((eq? '+ (operator expression)) (MVexpression (leftoperand expression) state (lambda (v1) (MVexpression (rightoperand expression) state (lambda (v2) (return (+ v1 v2))) class-env instance)) class-env instance))
+      ((function? expression) (return (MVfunction (fun-call-name expression) (fun-call-params expression) state (lambda (v) v) throw class-env instance)))
+      ((eq? '+ (operator expression)) (MVexpression (leftoperand expression) state (lambda (v1) (MVexpression (rightoperand expression) state (lambda (v2) (return (+ v1 v2))) throw class-env instance)) throw class-env instance))
       ((eq? '- (operator expression)) 
        (cond
-         ((unary? expression) (MVexpression (leftoperand expression) state (lambda (v) (return (* v -1))) class-env instance))
+         ((unary? expression) (MVexpression (leftoperand expression) state (lambda (v) (return (* v -1))) throw class-env instance))
          (else (MVexpression (leftoperand expression) state (lambda (v1) 
-                                                              (MVexpression (rightoperand expression) state (lambda (v2) (return (- v1 v2))) class-env instance)) class-env instance))))
+                                                              (MVexpression (rightoperand expression) state (lambda (v2) (return (- v1 v2))) throw class-env instance)) throw class-env instance))))
       ((eq? '* (operator expression)) (MVexpression (leftoperand expression) state (lambda (v1)
-                                                                                     (MVexpression (rightoperand expression) state (lambda (v2) (return (* v1 v2))) class-env instance)) class-env instance))
+                                                                                     (MVexpression (rightoperand expression) state (lambda (v2) (return (* v1 v2))) throw class-env instance)) throw class-env instance))
       ((eq? '/ (operator expression)) (MVexpression (leftoperand expression) state (lambda (v1)
-                                                                                     (MVexpression (rightoperand expression) state (lambda (v2)(return (quotient v1 v2))) class-env instance)) class-env instance))
+                                                                                     (MVexpression (rightoperand expression) state (lambda (v2)(return (quotient v1 v2))) throw class-env instance)) throw class-env instance))
       ((eq? '% (operator expression)) (MVexpression (leftoperand expression) state (lambda (v1)
-                                                                                     (MVexpression (rightoperand expression) state (lambda (v2) (return (remainder v1 v2))) class-env instance)) class-env instance)) 
-      (else (return (MVcondition expression state return class-env instance)))
+                                                                                     (MVexpression (rightoperand expression) state (lambda (v2) (return (remainder v1 v2))) throw class-env instance)) throw class-env instance)) 
+      (else (return (MVcondition expression state return throw class-env instance)))
       )))
 
 ;This should return the value of a condition
 (define MVcondition
-  (lambda (condition state return class-env instance)
+  (lambda (condition state return throw class-env instance)
     (cond
       ((number? condition) (return condition))
       ((eq? 'true condition ) (return #t))
       ((eq? 'false condition ) (return #f))
       ((variable? condition) (return (MVenv-var condition state class-env instance)))
-      ((eq? '! (operator condition)) (MVcondition (leftoperand condition) state (lambda (v) (return (not v))) class-env instance))
-      ((eq? '> (operator condition)) (MVexpression (leftoperand condition) state (lambda (v1) (MVexpression (rightoperand condition) state (lambda (v2) (return (> v1 v2))) class-env instance)) class-env instance))
-      ((eq? '>= (operator condition)) (MVexpression (leftoperand condition) state (lambda (v1) (MVexpression (rightoperand condition) state (lambda (v2) (return (>= v1 v2)))class-env instance))class-env instance))
-      ((eq? '< (operator condition)) (MVexpression (leftoperand condition) state (lambda (v1) (MVexpression (rightoperand condition) state (lambda (v2) (return (< v1 v2))) class-env instance)) class-env instance))
-      ((eq? '<= (operator condition)) (MVexpression (leftoperand condition) state (lambda (v1) (MVexpression (rightoperand condition) state (lambda (v2) (return (<= v1 v2))) class-env instance)) class-env instance))
-      ((eq? '== (operator condition)) (MVexpression (leftoperand condition) state (lambda (v1) (MVexpression (rightoperand condition) state (lambda (v2) (return (eq? v1 v2))) class-env instance)) class-env instance))
-      ((eq? '!= (operator condition)) (MVexpression (leftoperand condition) state (lambda (v1) (MVexpression (rightoperand condition) state (lambda (v2) (return (not (eq? v1 v2)))) class-env instance)) class-env instance))
-      ((eq? '&& (operator condition)) (MVexpression (leftoperand condition) state (lambda (v1) (MVexpression (rightoperand condition) state (lambda (v2) (and v1 v2)) class-env instance)) class-env instance))
-      ((eq? '|| (operator condition)) (MVexpression (leftoperand condition) state (lambda (v1) (MVexpression (rightoperand condition) state (lambda (v2) (or v1 v2)) class-env instance)) class-env instance))
+      ((eq? '! (operator condition)) (MVcondition (leftoperand condition) state (lambda (v) (return (not v))) throw class-env instance))
+      ((eq? '> (operator condition)) (MVexpression (leftoperand condition) state (lambda (v1) (MVexpression (rightoperand condition) state (lambda (v2) (return (> v1 v2))) throw class-env instance)) throw class-env instance))
+      ((eq? '>= (operator condition)) (MVexpression (leftoperand condition) state (lambda (v1) (MVexpression (rightoperand condition) state (lambda (v2) (return (>= v1 v2)))throw class-env instance))throw class-env instance))
+      ((eq? '< (operator condition)) (MVexpression (leftoperand condition) state (lambda (v1) (MVexpression (rightoperand condition) state (lambda (v2) (return (< v1 v2))) throw class-env instance)) throw class-env instance))
+      ((eq? '<= (operator condition)) (MVexpression (leftoperand condition) state (lambda (v1) (MVexpression (rightoperand condition) state (lambda (v2) (return (<= v1 v2))) throw class-env instance)) throw class-env instance))
+      ((eq? '== (operator condition)) (MVexpression (leftoperand condition) state (lambda (v1) (MVexpression (rightoperand condition) state (lambda (v2) (return (eq? v1 v2))) throw class-env instance)) throw class-env instance))
+      ((eq? '!= (operator condition)) (MVexpression (leftoperand condition) state (lambda (v1) (MVexpression (rightoperand condition) state (lambda (v2) (return (not (eq? v1 v2)))) throw class-env instance)) throw class-env instance))
+      ((eq? '&& (operator condition)) (MVexpression (leftoperand condition) state (lambda (v1) (MVexpression (rightoperand condition) state (lambda (v2) (and v1 v2)) throw class-env instance)) throw class-env instance))
+      ((eq? '|| (operator condition)) (MVexpression (leftoperand condition) state (lambda (v1) (MVexpression (rightoperand condition) state (lambda (v2) (or v1 v2)) throw class-env instance)) throw class-env instance))
       (else (error "incorrect operator" (operator condition))))))
 
 ;This should return the value of a return statement
 (define MVreturn
-  (lambda (expression state return class-env instance)
+  (lambda (expression state return throw class-env instance)
     ((lambda (result)
        (cond
          ((eq? result #t) (return 'true))
          ((eq? result #f) (return 'false))
-         (else result))) (MVexpression expression state return class-env instance))))
+         (else result))) (MVexpression expression state return throw class-env instance))))
 
 ;this should return the value of a variable
 (define MVvariable
@@ -140,7 +150,7 @@
 
 ;this updates the state after a declaration
 (define MSdeclare
-  (lambda (variable expression state class-env instance)
+  (lambda (variable expression state throw class-env instance)
     (cond
       ((declared? variable (namelist (top-layer state))) (error "redefining" variable))
       ((null? expression) (cons (cons (cons variable (namelist (top-layer state)))
@@ -149,23 +159,23 @@
                                       ;      '()))
                                       (list (append (valuelist (top-layer state)) (list (box 'error)))))
                                 (remove-layer state)))
-      (else (cons (MSassign variable (car expression) (top-layer (MSdeclare variable '() state class-env instance)) state class-env instance) (remove-layer state))))))
+      (else (cons (MSassign variable (car expression) (top-layer (MSdeclare variable '() state throw class-env instance)) state throw class-env instance) (remove-layer state))))))
 
 ;helper function that deals with the layers
 (define MSassign-layer 
-  (lambda (variable expression state layers class-env instance)
+  (lambda (variable expression state layers throw class-env instance)
     (cond
       ((null? state) (error "undeclared-variable:" variable))
-      ((or (null? (namelist (top-layer state))) (not (declared? variable (namelist (top-layer state))))) (cons (top-layer state) (MSassign-layer variable expression (cdr state) layers class-env instance)))
-      (else (cons (MSassign variable expression (top-layer state) layers class-env instance) (cdr state)))))) ; variable is in layer
+      ((or (null? (namelist (top-layer state))) (not (declared? variable (namelist (top-layer state))))) (cons (top-layer state) (MSassign-layer variable expression (cdr state) layers throw class-env instance)))
+      (else (cons (MSassign variable expression (top-layer state) layers throw class-env instance) (cdr state)))))) ; variable is in layer
 
 ;this updates the state after an assignment
 (define MSassign
-  (lambda (variable expression state layers class-env instance)
+  (lambda (variable expression state layers throw class-env instance)
     (cond
       ((null? (namelist state)) #f)
       ((not (declared? variable (namelist state))) #f)
-      ((eq? (car (namelist state)) variable) (append (list (namelist state)) (list (assign-var (length (cdr (namelist state))) expression (valuelist state) layers class-env instance))))
+      ((eq? (car (namelist state)) variable) (append (list (namelist state)) (list (assign-var (length (cdr (namelist state))) expression (valuelist state) layers throw class-env instance))))
       (else ((lambda (assign)
                (cons (cons
                       (car (namelist state))
@@ -174,30 +184,30 @@
                       (valuelist assign) '()))) 
              (MSassign variable expression (append
                                             (cons (cdr (namelist state))  '())
-                                            (cons (valuelist state) '())) layers class-env instance))))))
+                                            (cons (valuelist state) '())) layers throw class-env instance))))))
 
 ; assigns the variable in the valuelist
 (define assign-var
-  (lambda (index expression valuelist layers class-env instance)
+  (lambda (index expression valuelist layers throw class-env instance)
     (cond
-      ((zero? index) (begin (set-box! (car valuelist) (MVexpression expression layers (lambda (v) v) class-env instance)) valuelist))
-      (else (cons (car valuelist) (assign-var (- index 1) expression (cdr valuelist) layers class-env instance))))))
+      ((zero? index) (begin (set-box! (car valuelist) (MVexpression expression layers (lambda (v) v) throw class-env instance)) valuelist))
+      (else (cons (car valuelist) (assign-var (- index 1) expression (cdr valuelist) layers throw class-env instance))))))
 
 
 
 ; this returns the state after all the class is scanned through
 ; right now only does static functions
 (define MSclass
-  (lambda (name parent body state)
+  (lambda (name parent body state throw)
     (add-to-state name
                   (box (create-class (get-parent parent)
-                                     (list (append (namelist (field-env (interpret-static body initial-state initial-state state temp-class temp-instance))) 
+                                     (list (append (namelist (field-env (interpret-static body initial-state initial-state state throw temp-class temp-instance))) 
                                                    (namelist (get-parent-fields (get-parent parent) state temp-class temp-instance)))
-                                           (append (valuelist (field-env (interpret-static body initial-state initial-state state temp-class temp-instance))) 
+                                           (append (valuelist (field-env (interpret-static body initial-state initial-state state throw temp-class temp-instance))) 
                                                    (valuelist (get-parent-fields (get-parent parent) state temp-class temp-instance))))
-                                     (list (append (namelist (function-env (interpret-static body initial-state initial-state state temp-class temp-instance))) 
+                                     (list (append (namelist (function-env (interpret-static body initial-state initial-state state throw temp-class temp-instance))) 
                                                    (namelist (get-parent-funcs (get-parent parent) state temp-class temp-instance)))
-                                           (append (valuelist (function-env (interpret-static body initial-state initial-state state temp-class temp-instance))) 
+                                           (append (valuelist (function-env (interpret-static body initial-state initial-state state throw temp-class temp-instance))) 
                                                    (valuelist (get-parent-funcs (get-parent parent) state temp-class temp-instance))))
                                      '())) ; instance variable names will go here
                   state)))
@@ -268,33 +278,34 @@
      (lambda (break)
        (letrec ((loop (lambda (condition body state return)
                         (cond
-                          ((MVcondition condition state return class-env instance) (loop condition body (interpret-help (cons body '()) state return break class-env instance) return))
+                          ((MVcondition condition state return throw class-env instance) (loop condition body (interpret-help (cons body '()) state return break throw class-env instance) return))
                           (else (return state))))))
          (loop condition body state return))))))
 
 ;provides the value for a function call
 (define MVfunction
-  (lambda (name values state return class-env instance)
+  (lambda (name values state return throw class-env instance)
     (cond
       ((eq? name 'main) (return (interpret-help (closure-body (MVvariable name state class-env instance))
                                                 (append (closure-state (MVvariable name state class-env instance)) (last-layer state))
                                                 return
                                                 'error
+                                                throw
                                                 class-env instance)))
       (return (interpret-help (closure-body (MVvariable name state class-env instance))                   
-                              (addparams (closure-params (MVvariable name state class-env instance)) (evaluate-params values state (lambda (v1) v1) class-env instance) (make-closure-state name 
+                              (addparams (closure-params (MVvariable name state class-env instance)) (evaluate-params values state (lambda (v1) v1) throw class-env instance) (make-closure-state name 
                                                                                                                                                                                             (closure-params (MVvariable name state class-env instance)) 
                                                                                                                                                                                             (closure-body (MVvariable name state class-env instance)) 
                                                                                                                                                                                             (closure-state (MVvariable name state class-env instance)) 
-                                                                                                                                                                                            class-env instance) class-env instance)      
+                                                                                                                                                                                            class-env instance) throw class-env instance)      
                               return
-                              'error class-env instance)))))
+                              'error throw class-env instance)))))
 
 (define evaluate-params
-  (lambda (values state return class-env instance)
+  (lambda (values state return throw class-env instance)
     (cond
       ((null? values) (return '()))
-      (else (evaluate-params (cdr values) state (lambda (v) (return (cons (MVexpression (car values) state (lambda (v1) v1) class-env instance) v))) class-env instance)))))
+      (else (evaluate-params (cdr values) state (lambda (v) (return (cons (MVexpression (car values) state (lambda (v1) v1) throw class-env instance) v))) throw class-env instance)))))
 
 ;provides the state after a function call
 (define MSfunction
@@ -310,12 +321,12 @@
 
 ;adds parameters to the state
 (define addparams
-  (lambda (param-names param-values state class-env instance)
+  (lambda (param-names param-values state throw class-env instance)
     (cond
       ((and (null? param-names) (null? param-values)) state)
       ((null? param-names) (error "too many parameters"))
       ((null? param-values) (error "not enough parameters")) 
-      (else (addparams (cdr param-names) (cdr param-values) (MSdeclare (car param-names) (cons (car param-values) '()) state class-env instance) class-env instance)))))
+      (else (addparams (cdr param-names) (cdr param-values) (MSdeclare (car param-names) (cons (car param-values) '()) state throw class-env instance) throw class-env instance)))))
 
 (define create-instance
   (lambda (class-name field-values)
@@ -363,6 +374,15 @@
 
 (define temp-class '(() (()()) (()()) ()))
 (define temp-instance '(() ()))
+
+; try catch finally stuff
+(define try-body cadar)
+(define catch-body
+  (lambda (stmt)
+    (caddr (caddar stmt))))
+(define finally-body 
+  (lambda (stmt)
+    (cadar (cdddar stmt))))
 
 ;these identify parse tree elements
 (define identifier caar)
