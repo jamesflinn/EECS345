@@ -155,9 +155,6 @@
     (cond
       ((declared? variable (namelist (top-layer state))) (error "redefining" variable))
       ((null? expression) (cons (cons (cons variable (namelist (top-layer state)))
-                                      ;(cons (cons (box 'error)
-                                      ;            (valuelist (top-layer state)))
-                                      ;      '()))
                                       (list (append (valuelist (top-layer state)) (list (box 'error)))))
                                 (remove-layer state)))
       (else (cons (MSassign variable (car expression) (top-layer (MSdeclare variable '() state throw class-env instance)) state throw class-env instance) (remove-layer state))))))
@@ -243,7 +240,7 @@
     (cond
       ((declared? variable (namelist (class-field-env class-env))) (MVvariable variable (list (class-field-env class-env)) class-env instance))
       ((declared? variable (class-field-names class-env)) (MVvariable variable (list (list (class-field-names class-env) (instance-field-values instance))) class-env instance))
-      (else #f))))
+      (else 'variable-not-found))))
 
 ; checks if variable is in the state, if so, returns the value, otherwise, returns MVclass-var
 (define MVenv-var
@@ -256,7 +253,7 @@
 ; gets the value of a dot expression
 (define MVdot
   (lambda (right-side state class-env instance)
-    (if (eq? (MVclass-var right-side class-env instance) #f)
+    (if (eq? (MVclass-var right-side class-env instance) 'variable-not-found)
         (MVvariable right-side (list (class-method-env class-env)) class-env instance) ; is a function
         (MVclass-var right-side class-env instance)))) ; is a variable
 
