@@ -13,7 +13,8 @@
 (define interpret-global
   (lambda (tree state classname)
     (cond
-      ((null? tree) (MVfunction 'main '() (list (class-method-env (MVvariable classname state temp-class temp-instance)) state) (lambda (v) v) (lambda (v) v) temp-class temp-instance))
+      ((null? tree) (MVfunction 'main '() (list (class-method-env (MVvariable classname state temp-class temp-instance)) state) (lambda (v) v) (lambda (v) v)
+                                (MVvariable classname state temp-class temp-instance) temp-instance))
       ((eq? (identifier tree) 'class) (interpret-global (cdr tree) (MSclass (class-name tree) (class-parent tree) (class-body tree) state (lambda (v) v)) classname))
       ((else (error "should only be a class"))))))
 
@@ -293,14 +294,14 @@
                                                 'error
                                                 throw
                                                 class-env instance)))
-      (return (interpret-help (closure-body (MVvariable name state class-env instance))                   
+      (else (return (interpret-help (closure-body (MVvariable name state class-env instance))                   
                               (addparams (closure-params (MVvariable name state class-env instance)) (evaluate-params values state (lambda (v1) v1) throw class-env instance) (make-closure-state name 
                                                                                                                                                                                             (closure-params (MVvariable name state class-env instance)) 
                                                                                                                                                                                             (closure-body (MVvariable name state class-env instance)) 
                                                                                                                                                                                             (closure-state (MVvariable name state class-env instance)) 
                                                                                                                                                                                             class-env instance) throw class-env instance)      
                               return
-                              'error throw class-env instance)))))
+                              'error throw class-env instance))))))
 
 (define evaluate-params
   (lambda (values state return throw class-env instance)
