@@ -14,8 +14,8 @@
   (lambda (tree state classname)
     (cond
       ((null? tree) (MVfunction 'main '() (list (class-method-env (MVvariable classname state temp-class temp-instance)) state) (lambda (v) v) (lambda (v) v)
-                                (MVvariable classname state temp-class temp-instance) temp-instance))
-      ((eq? (identifier tree) 'class) (interpret-global (cdr tree) (MSclass (class-name tree) (class-parent tree) (class-body tree) state (lambda (v) v)) classname))
+                                (MVvariable classname state temp-class temp-instance) (create-instance classname '())))
+      ((eq? (identifier tree) 'class) (interpret-global (cdr tree) (MSclass (class-name tree) (class-parent tree) (class-body tree) state (lambda (v) v) (create-instance classname '())) classname))
       ((else (error "should only be a class"))))))
 
 ;interprets all static variable and function declarations and puts them in the state
@@ -196,18 +196,18 @@
 ; this returns the state after all the class is scanned through
 ; right now only does static functions
 (define MSclass
-  (lambda (name parent body state throw)
+  (lambda (name parent body state throw instance)
     (add-to-state name
                   (box (create-class (get-parent parent)
                                      ; static field list
-                                     (list (append (namelist (field-env (interpret-static body initial-state initial-state state throw temp-class temp-instance))) 
+                                     (list (append (namelist (field-env (interpret-static body initial-state initial-state state throw temp-class instance))) 
                                                    (namelist (get-parent-fields (get-parent parent) state temp-class temp-instance)))
                                            (append (valuelist (get-parent-fields (get-parent parent) state temp-class temp-instance))
-                                                   (valuelist (field-env (interpret-static body initial-state initial-state state throw temp-class temp-instance)))))
-                                     (list (append (namelist (function-env (interpret-static body initial-state initial-state state throw temp-class temp-instance))) 
+                                                   (valuelist (field-env (interpret-static body initial-state initial-state state throw temp-class instance)))))
+                                     (list (append (namelist (function-env (interpret-static body initial-state initial-state state throw temp-class instance))) 
                                                    (namelist (get-parent-funcs (get-parent parent) state temp-class temp-instance)))
                                            (append (valuelist (get-parent-funcs (get-parent parent) state temp-class temp-instance))
-                                                   (valuelist (function-env (interpret-static body initial-state initial-state state throw temp-class temp-instance)))))
+                                                   (valuelist (function-env (interpret-static body initial-state initial-state state throw temp-class instance)))))
                                      '())) ; instance variable names will go here
                   state)))
 
@@ -291,14 +291,20 @@
                                                 'error
                                                 throw
                                                 class-env instance)))
-      (else (return (interpret-help (closure-body (MVvariable name state class-env instance))                   
-                              (addparams (closure-params (MVvariable name state class-env instance)) (evaluate-params values state (lambda (v1) v1) throw class-env instance) (make-closure-state name 
-                                                                                                                                                                                            (closure-params (MVvariable name state class-env instance)) 
-                                                                                                                                                                                            (closure-body (MVvariable name state class-env instance)) 
-                                                                                                                                                                                            (closure-state (MVvariable name state class-env instance)) 
-                                                                                                                                                                                            class-env instance) throw class-env instance)      
-                              return
-                              'error throw class-env instance))))))
+    (else ((lambda (to-be-named) 
+             (return (interpret-help (closure-body to-be-named)                   
+                                     (addparams (closure-params to-be-named) (evaluate-params values state (lambda (v1) v1) throw class-env instance) (make-closure-state name 
+                                                                                                                                                                          (closure-params to-be-named) 
+                                                                                                                                                                          (closure-body to-be-named) 
+                                                                                                                                                                          (closure-state to-be-named) 
+                                                                                                                                                                          class-env instance) throw class-env instance)      
+                                     return
+                                     'error throw class-env instance))) (get-func-closure name state class-env instance))))))
+
+; returns the function closure using the function name, state, class environment, and instance
+(define get-func-closure
+  (lambda (name state class-env instance)
+    (MVvariable name (list (class-method-env (MVvariable (instance-class-name instance) state class-env instance)) (last-layer state)) class-env instance)))
 
 (define evaluate-params
   (lambda (values state return throw class-env instance)
@@ -330,8 +336,6 @@
 (define create-instance
   (lambda (class-name field-values)
     (list class-name field-values)))
-
-
 
 ; adds a name and a value to the given state
 (define add-to-state
@@ -412,6 +416,7 @@
 (define closure-params car)
 (define closure-body cadr)
 (define closure-state caddr)
+(define closure-class cadddr)
 
 ;function call stuff
 (define fun-call-name cadr)
@@ -469,3 +474,9 @@
     (cond
       ((null? (cdddr stmt)) #f)
       (else #t))))
+
+(interpret "4test1.txt" 'A)
+(interpret "4test2.txt" 'A)
+(interpret "4test3.txt" 'A)
+(interpret "4test4.txt" 'A)
+(interpret "4test5.txt" 'A)
