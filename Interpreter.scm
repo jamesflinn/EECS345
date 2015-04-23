@@ -24,7 +24,7 @@
     (cond
       ((null? tree) (list field-env function-env))
       ((eq? (identifier tree) 'static-var) (interpret-static (cdr tree) 
-                                                             (MSdeclare (variable tree) (cddar tree) field-env throw class-env instance) 
+                                                             (MSdeclare (variable tree) (cddar tree) (append field-env (list (last-layer state))) throw class-env instance)
                                                              function-env 
                                                              (MSdeclare (variable tree) (cddar tree) state throw class-env instance)
                                                              throw 
@@ -57,7 +57,7 @@
                                                    return break throw class-env instance))
       ((eq? (identifier tree) 'return) (MVreturn (return-stmt tree) state return throw class-env instance))
       ((eq? (identifier tree) 'begin) (interpret-help (cdr tree) (remove-layer (interpret-help (get-stmt-list tree) (new-layer state) return break throw class-env instance)) return break throw class-env instance))
-      ((eq? (identifier tree) 'while) (interpret-help (cdr tree) (MSwhile (while-condition tree) (while-body tree) state return class-env instance) return break throw class-env instance))
+      ((eq? (identifier tree) 'while) (interpret-help (cdr tree) (MSwhile (while-condition tree) (while-body tree) state return throw class-env instance) return break throw class-env instance))
       ((eq? (identifier tree) 'continue) state)
       ((eq? (identifier tree) 'break) (break (remove-layer state)))
       ((eq? (identifier tree) 'function) (interpret-help (cdr tree) (MSfunction (function-name tree) (param-list tree) (function-body tree) state class-env instance) return break throw class-env instance))
@@ -197,19 +197,20 @@
 ; right now only does static functions
 (define MSclass
   (lambda (name parent body state throw instance)
-    (add-to-state name
-                  (box (create-class (get-parent parent)
-                                     ; static field list
-                                     (list (append (namelist (field-env (interpret-static body initial-state initial-state state throw temp-class instance))) 
-                                                   (namelist (get-parent-fields (get-parent parent) state temp-class temp-instance)))
-                                           (append (valuelist (get-parent-fields (get-parent parent) state temp-class temp-instance))
-                                                   (valuelist (field-env (interpret-static body initial-state initial-state state throw temp-class instance)))))
-                                     (list (append (namelist (function-env (interpret-static body initial-state initial-state state throw temp-class instance))) 
-                                                   (namelist (get-parent-funcs (get-parent parent) state temp-class temp-instance)))
-                                           (append (valuelist (get-parent-funcs (get-parent parent) state temp-class temp-instance))
-                                                   (valuelist (function-env (interpret-static body initial-state initial-state state throw temp-class instance)))))
-                                     '())) ; instance variable names will go here
-                  state)))
+    ((lambda (class-env)
+       (add-to-state name
+                     (box (create-class (get-parent parent)
+                                        ; static field list
+                                        (list (append (namelist (field-env class-env)) 
+                                                      (namelist (get-parent-fields (get-parent parent) state temp-class temp-instance)))
+                                              (append (valuelist (get-parent-fields (get-parent parent) state temp-class temp-instance))
+                                                      (valuelist (field-env class-env))))
+                                        (list (append (namelist (function-env class-env)) 
+                                                      (namelist (get-parent-funcs (get-parent parent) state temp-class temp-instance)))
+                                              (append (valuelist (get-parent-funcs (get-parent parent) state temp-class temp-instance))
+                                                      (valuelist (function-env class-env))))
+                                        '())) ; instance variable names will go here
+                     state)) (interpret-static body initial-state initial-state state throw (create-class (get-parent parent) '() '() '())  instance))))
 
 (define get-parent
   (lambda (parent)
@@ -274,7 +275,7 @@
 
 ;provides the state for a while loop
 (define MSwhile
-  (lambda (condition body state return class-env instance)
+  (lambda (condition body state return throw class-env instance)
     (call/cc
      (lambda (break)
        (letrec ((loop (lambda (condition body state return)
