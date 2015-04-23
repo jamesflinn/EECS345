@@ -83,7 +83,7 @@
       ((eq? 'true expression) (return #t))
       ((eq? 'false expression) (return #f))
       ((variable? expression) (return (MVenv-var expression state class-env instance)))
-      ((eq? 'dot (operator expression)) (MVdot (caddr expression) state (get-class-dot (cadr expression) state class-env instance) (get-instance-dot (cadr expression) state)))
+      ((eq? 'dot (operator expression)) (return (MVdot (caddr expression) state (get-class-dot (cadr expression) state class-env instance) (get-instance-dot (cadr expression) state))))
       ((function? expression) (return (MVfunction (fun-call-name expression) (fun-call-params expression) state (lambda (v) v) throw class-env instance)))
       ((eq? '+ (operator expression)) (MVexpression (leftoperand expression) state (lambda (v1) (MVexpression (rightoperand expression) state (lambda (v2) (return (+ v1 v2))) throw class-env instance)) throw class-env instance))
       ((eq? '- (operator expression)) 
@@ -262,7 +262,9 @@
 ; for instances, must get class from instance
 (define get-class-dot
   (lambda (name state class-env instance)
-    (MVvariable name state class-env instance)))
+    (cond
+      ((eq? name 'super) (MVvariable (car class-env) state class-env instance))
+      (else (MVvariable name state class-env instance)))))
 
 ; returns the instance of the left side of the dot
 ; currently returns null since we are only dealing with static things for now
@@ -475,8 +477,8 @@
       ((null? (cdddr stmt)) #f)
       (else #t))))
 
-(interpret "4test1.txt" 'A)
-(interpret "4test2.txt" 'A)
-(interpret "4test3.txt" 'A)
-(interpret "4test4.txt" 'A)
-(interpret "4test5.txt" 'A)
+;(interpret "4test1.txt" 'A)
+;(interpret "4test2.txt" 'A)
+;(interpret "4test3.txt" 'A)
+;(interpret "4test4.txt" 'A)
+;(interpret "4test5.txt" 'A)
