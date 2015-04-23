@@ -15,7 +15,7 @@
     (cond
       ((null? tree) (MVfunction 'main '() (list (class-method-env (MVvariable classname state temp-class temp-instance)) state) (lambda (v) v) (lambda (v) v)
                                 (MVvariable classname state temp-class temp-instance) (create-instance classname '())))
-      ((eq? (identifier tree) 'class) (interpret-global (cdr tree) (MSclass (class-name tree) (class-parent tree) (class-body tree) state (lambda (v) v) (create-instance classname '())) classname))
+      ((eq? (identifier tree) 'class) (interpret-global (cdr tree) (MSclass (class-name tree) (class-parent tree) (class-body tree) state (lambda (v) v) (create-instance (class-name tree) '())) classname))
       ((else (error "should only be a class"))))))
 
 ;interprets all static variable and function declarations and puts them in the state
@@ -47,7 +47,7 @@
       ((and (null? tree) (declared? 'main (namelist (top-layer state))) (MVfunction 'main '() state return throw class-env instance)))
       ((null? tree) state)
       ((eq? (identifier tree) 'var) (interpret-help (cdr tree) (MSdeclare (variable tree) (cddar tree) state throw class-env instance) return break throw class-env instance))
-      ((eq? (identifier tree) '=) (interpret-help (cdr tree) (MSassign-layer (variable tree) (expression-stmt tree) state state throw class-env instance) return break throw class-env instance))
+      ((eq? (identifier tree) '=) (MSassign-top (variable tree) (expression-stmt tree) state tree return break throw class-env instance))
       ((eq? (identifier tree) 'if) (interpret-help (cdr tree)
                                                    (if (MVcondition (condition-stmt tree) state return throw class-env instance)
                                                        (interpret-help (cons (then-stmt tree) '()) state return break throw class-env instance)
@@ -143,6 +143,7 @@
                                                    '())) 
                                        (remove-layer state)) class-env instance)))))
 
+; returns the value of the variable given the index of the name in the namelist
 (define get-var
   (lambda (index valuelist)
     (cond
@@ -158,6 +159,20 @@
                                       (list (append (valuelist (top-layer state)) (list (box 'error)))))
                                 (remove-layer state)))
       (else (cons (MSassign variable (car expression) (top-layer (MSdeclare variable '() state throw class-env instance)) state throw class-env instance) (remove-layer state))))))
+
+; helper function that finds where to assign the variable - the state, the static fields, or instance fields
+(define MSassign-top
+  (lambda (variable expression state tree return break throw class-env instance)
+    (cond
+      ((var-in-state? variable state) (interpret-help (cdr tree) (MSassign-layer variable expression state state throw class-env instance) return break throw class-env instance))
+      ((var-in-static? variable class-env) (interpret-help (cdr tree) state return break throw (create-class (car class-env)
+                                                                                                             (MSassign variable 
+                                                                                                                       (MVexpression expression state return throw class-env instance) 
+                                                                                                                       (class-field-env class-env) (list (class-field-env class-env)) throw class-env instance)
+                                                                                                             (class-method-env class-env)
+                                                                                                             (class-field-names class-env)) instance))
+      ((var-in-instance? variable class-env) '()) ; NOT COMPLETED
+      (else (error "undeclared variable" 'variable)))))                                                                                                                   
 
 ;helper function that deals with the layers
 (define MSassign-layer 
@@ -302,7 +317,7 @@
                                                                                                                                                                           (closure-state to-be-named) 
                                                                                                                                                                           class-env instance) throw class-env instance)      
                                      return
-                                     'error throw class-env instance))) (get-func-closure name state class-env instance))))))
+                                     'error throw (MVvariable (closure-class to-be-named) state class-env instance) instance))) (get-func-closure name state class-env instance))))))
 
 ; returns the function closure using the function name, state, class environment, and instance
 (define get-func-closure
@@ -478,8 +493,33 @@
       ((null? (cdddr stmt)) #f)
       (else #t))))
 
-;(interpret "4test1.txt" 'A)
-;(interpret "4test2.txt" 'A)
-;(interpret "4test3.txt" 'A)
-;(interpret "4test4.txt" 'A)
-;(interpret "4test5.txt" 'A)
+; return true if variable is in the state
+(define var-in-state?
+  (lambda (variable state)
+    (cond
+      ((null? state) #f)
+      ((declared? variable (namelist (top-layer state))) #t)
+      (else (var-in-state? variable (remove-layer state))))))
+
+; return true if variable is in the static field list
+(define var-in-static?
+  (lambda (variable class-env)
+    (declared? variable (namelist (class-field-env class-env)))))
+
+; return true if variable is in the instance field list
+(define var-in-instance?
+  (lambda (variable class-env)
+    (declared? variable (class-field-names class-env))))
+      
+
+(interpret "4test1.txt" 'A) ; 10
+(interpret "4test2.txt" 'A) ; true
+(interpret "4test3.txt" 'A) ; 30
+(interpret "4test4.txt" 'A) ; false
+(interpret "4test5.txt" 'A) ; 30
+(interpret "4test5.txt" 'B) ; 510
+(interpret "4test6.txt" 'A) ; 30
+(interpret "4test6.txt" 'B) ; 530
+(interpret "4test7.txt" 'A) ; 105
+(interpret "4test7.txt" 'B) ; 1155
+(interpret "4test8.txt" 'B) ; 615
