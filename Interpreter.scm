@@ -82,7 +82,7 @@
       ((boolean? expression) (return expression))
       ((eq? 'true expression) (return #t))
       ((eq? 'false expression) (return #f))
-      ((variable? expression) (return (MVenv-var expression state class-env instance)))
+      ((variable? expression) (return (if (eq? (MVenv-var expression state class-env instance) 'variable-not-found) (error "variable not found:" expression) (MVenv-var expression state class-env instance))))
       ((eq? 'dot (operator expression)) (return (MVdot (caddr expression) state (get-class-dot (cadr expression) state class-env instance) (get-instance-dot (cadr expression) state))))
       ((function? expression) (return (MVfunction (fun-call-name expression) (fun-call-params expression) state (lambda (v) v) throw class-env instance)))
       ((eq? '+ (operator expression)) (MVexpression (leftoperand expression) state (lambda (v1) (MVexpression (rightoperand expression) state (lambda (v2) (return (+ v1 v2))) throw class-env instance)) throw class-env instance))
@@ -523,3 +523,5 @@
 (interpret "4test7.txt" 'A) ; 105
 (interpret "4test7.txt" 'B) ; 1155
 (interpret "4test8.txt" 'B) ; 615
+;(interpret "4test9.txt" 'B) ; ERROR: variable not found: d
+(interpret "4test9.txt" 'C) ; 4321
