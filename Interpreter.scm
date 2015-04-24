@@ -62,15 +62,17 @@
       ((eq? (identifier tree) 'break) (break (remove-layer state)))
       ((eq? (identifier tree) 'function) (interpret-help (cdr tree) (MSfunction (function-name tree) (param-list tree) (function-body tree) state class-env instance) return break throw class-env instance))
       ((eq? (identifier tree) 'funcall) (interpret-help (cdr tree) (begin (MVfunction (fun-call-name (car tree)) (fun-call-params (car tree)) state (lambda (v) v) throw class-env instance) state) return break throw class-env instance))
-      ((eq? (identifier tree) 'try) (interpret-help (cdr tree) (interpret-help (finally-body tree) 
-                                                                               (interpret-help (try-body tree) state (lambda (v) (return (interpret-help (finally-body tree) v return break throw class-env instance))) break 
-                                                                               (lambda (v) (interpret-help (catch-body tree) (add-to-state 'e (box v) state) return break throw class-env instance)) class-env instance)
-                                                                               return
-                                                                               break
-                                                                               throw
-                                                                               class-env
-                                                                               instance)
-                                                                               return break throw class-env instance))
+      ((eq? (identifier tree) 'try) (interpret-help (cdr tree) (MStry (try-body tree) (catch-body tree) (finally-body tree) state return break throw class-env instance) return break throw class-env instance))
+                                                    
+                                                    ;(interpret-help (finally-body tree) 
+                                                                ;               (interpret-help (try-body tree) state return break;(lambda (v) (return (interpret-help (finally-body tree) v return break throw class-env instance))) break 
+                                                                 ;              (lambda (v) (interpret-help (catch-body tree) (add-to-state 'e (box v) state) return break throw class-env instance)) class-env instance)
+                                                                  ;             return
+                                                                   ;;            break
+                                                                     ;          throw
+                                                                      ;         class-env
+                                                                       ;        instance)
+                                                                       ;       return break throw class-env instance)) 
       ((eq? (identifier tree) 'throw) (throw (MVexpression (cadar tree) state return throw class-env instance)))
       (else (error "bad-identifier" (identifier tree)))))) 
 
@@ -309,15 +311,15 @@
                                                 'error
                                                 throw
                                                 class-env instance)))
-    (else ((lambda (to-be-named) 
-             (return (interpret-help (closure-body to-be-named)                   
-                                     (addparams (closure-params to-be-named) (evaluate-params values state (lambda (v1) v1) throw class-env instance) (append (make-closure-state name 
-                                                                                                                                                                          (closure-params to-be-named) 
-                                                                                                                                                                          (closure-body to-be-named) 
-                                                                                                                                                                          (closure-state to-be-named) 
+    (else ((lambda (func-closure) 
+             (return (interpret-help (closure-body func-closure)                   
+                                     (addparams (closure-params func-closure) (evaluate-params values state (lambda (v1) v1) throw class-env instance) (append (make-closure-state name 
+                                                                                                                                                                          (closure-params func-closure) 
+                                                                                                                                                                          (closure-body func-closure) 
+                                                                                                                                                                          (closure-state func-closure) 
                                                                                                                                                                           class-env instance) (list (last-layer state))) throw class-env instance)      
                                      return
-                                     'error throw (MVvariable (closure-class to-be-named) state class-env instance) instance))) (get-func-closure name state class-env instance))))))
+                                     'error throw (MVvariable (closure-class func-closure) state class-env instance) instance))) (get-func-closure name state class-env instance))))))
 
 ; returns the function closure using the function name, state, class environment, and instance
 (define get-func-closure
@@ -363,6 +365,24 @@
                 (list (append (valuelist (top-layer state)) (list value))))
           (cdr state))))
 
+(define MStry
+  (lambda (try-body catch-body finally-body state return break throw class-env instance)
+    (interpret-help finally-body
+                    (call/cc
+                     (lambda (throw)
+                       (interpret-help try-body 
+                                    state
+                                    return
+                                    break
+                                    (lambda (v) (throw (interpret-help catch-body (add-to-state 'e (box v) state) return break throw class-env instance)))
+                                    class-env
+                                    instance)))
+                    return 
+                    break
+                    throw
+                    class-env
+                    instance)))
+
 ;ABSTRACTIONS
 ;the empty state
 (define initial-state '((() ())))
@@ -404,7 +424,8 @@
     (caddr (caddar stmt))))
 (define finally-body 
   (lambda (stmt)
-    (cadar (cdddar stmt))))
+    (if (null? (car (cdddar stmt))) '()
+        (cadar (cdddar stmt)))))
 
 ;these identify parse tree elements
 (define identifier caar)
@@ -513,19 +534,20 @@
     (declared? variable (class-field-names class-env))))
       
 
-(interpret "4test1.txt" 'A) ; 10
-(interpret "4test2.txt" 'A) ; true
-(interpret "4test3.txt" 'A) ; 30
-(interpret "4test4.txt" 'A) ; false
-(interpret "4test5.txt" 'A) ; 30
-(interpret "4test5.txt" 'B) ; 510
-(interpret "4test6.txt" 'A) ; 30
-(interpret "4test6.txt" 'B) ; 530
-(interpret "4test7.txt" 'A) ; 105
-(interpret "4test7.txt" 'B) ; 1155
-(interpret "4test8.txt" 'B) ; 615
+;(interpret "4test1.txt" 'A) ; 10
+;(interpret "4test2.txt" 'A) ; true
+;(interpret "4test3.txt" 'A) ; 30
+;(interpret "4test4.txt" 'A) ; false
+;(interpret "4test5.txt" 'A) ; 30
+;(interpret "4test5.txt" 'B) ; 510
+;(interpret "4test6.txt" 'A) ; 30
+;(interpret "4test6.txt" 'B) ; 530
+;(interpret "4test7.txt" 'A) ; 105
+;(interpret "4test7.txt" 'B) ; 1155
+;(interpret "4test8.txt" 'B) ; 615
 ;(interpret "4test9.txt" 'B) ; ERROR: variable not found: d
-(interpret "4test9.txt" 'C) ; 4321
-(interpret "4test10.txt" 'Square) ; 400
-(interpret "4test11.txt" 'A) ; 15
-(interpret "4test15.txt" 'Pow) ; 64
+;(interpret "4test9.txt" 'C) ; 4321
+;(interpret "4test10.txt" 'Square) ; 400
+;(interpret "4test11.txt" 'A) ; 15
+; (interpret "4test12.txt" 'A) ; 125
+;(interpret "4test15.txt" 'Pow) ; 64
