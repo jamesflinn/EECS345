@@ -322,7 +322,8 @@
 ; returns the function closure using the function name, state, class environment, and instance
 (define get-func-closure
   (lambda (name state class-env instance)
-    (MVvariable name (list (class-method-env (MVvariable (instance-class-name instance) state class-env instance)) (last-layer state)) class-env instance)))
+    (if (var-in-state? name state) (MVvariable name state class-env instance)
+        (MVvariable name (list (class-method-env (MVvariable (instance-class-name instance) state class-env instance)) (last-layer state)) class-env instance))))
 
 (define evaluate-params
   (lambda (values state return throw class-env instance)
@@ -512,18 +513,19 @@
     (declared? variable (class-field-names class-env))))
       
 
-;(interpret "4test1.txt" 'A) ; 10
-;(interpret "4test2.txt" 'A) ; true
-;(interpret "4test3.txt" 'A) ; 30
-;(interpret "4test4.txt" 'A) ; false
-;(interpret "4test5.txt" 'A) ; 30
-;(interpret "4test5.txt" 'B) ; 510
-;(interpret "4test6.txt" 'A) ; 30
-;(interpret "4test6.txt" 'B) ; 530
-;(interpret "4test7.txt" 'A) ; 105
-;(interpret "4test7.txt" 'B) ; 1155
-;(interpret "4test8.txt" 'B) ; 615
+(interpret "4test1.txt" 'A) ; 10
+(interpret "4test2.txt" 'A) ; true
+(interpret "4test3.txt" 'A) ; 30
+(interpret "4test4.txt" 'A) ; false
+(interpret "4test5.txt" 'A) ; 30
+(interpret "4test5.txt" 'B) ; 510
+(interpret "4test6.txt" 'A) ; 30
+(interpret "4test6.txt" 'B) ; 530
+(interpret "4test7.txt" 'A) ; 105
+(interpret "4test7.txt" 'B) ; 1155
+(interpret "4test8.txt" 'B) ; 615
 ;(interpret "4test9.txt" 'B) ; ERROR: variable not found: d
-;(interpret "4test9.txt" 'C) ; 4321
-;(interpret "4test10.txt" 'Square) ; 400
-;(interpret "4test11.txt" 'A) ; 15
+(interpret "4test9.txt" 'C) ; 4321
+(interpret "4test10.txt" 'Square) ; 400
+(interpret "4test11.txt" 'A) ; 15
+(interpret "4test15.txt" 'Pow) ; 64
