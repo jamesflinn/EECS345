@@ -311,11 +311,11 @@
                                                 class-env instance)))
     (else ((lambda (to-be-named) 
              (return (interpret-help (closure-body to-be-named)                   
-                                     (addparams (closure-params to-be-named) (evaluate-params values state (lambda (v1) v1) throw class-env instance) (make-closure-state name 
+                                     (addparams (closure-params to-be-named) (evaluate-params values state (lambda (v1) v1) throw class-env instance) (append (make-closure-state name 
                                                                                                                                                                           (closure-params to-be-named) 
                                                                                                                                                                           (closure-body to-be-named) 
                                                                                                                                                                           (closure-state to-be-named) 
-                                                                                                                                                                          class-env instance) throw class-env instance)      
+                                                                                                                                                                          class-env instance) (list (last-layer state))) throw class-env instance)      
                                      return
                                      'error throw (MVvariable (closure-class to-be-named) state class-env instance) instance))) (get-func-closure name state class-env instance))))))
 
@@ -512,16 +512,18 @@
     (declared? variable (class-field-names class-env))))
       
 
-(interpret "4test1.txt" 'A) ; 10
-(interpret "4test2.txt" 'A) ; true
-(interpret "4test3.txt" 'A) ; 30
-(interpret "4test4.txt" 'A) ; false
-(interpret "4test5.txt" 'A) ; 30
-(interpret "4test5.txt" 'B) ; 510
-(interpret "4test6.txt" 'A) ; 30
-(interpret "4test6.txt" 'B) ; 530
-(interpret "4test7.txt" 'A) ; 105
-(interpret "4test7.txt" 'B) ; 1155
-(interpret "4test8.txt" 'B) ; 615
+;(interpret "4test1.txt" 'A) ; 10
+;(interpret "4test2.txt" 'A) ; true
+;(interpret "4test3.txt" 'A) ; 30
+;(interpret "4test4.txt" 'A) ; false
+;(interpret "4test5.txt" 'A) ; 30
+;(interpret "4test5.txt" 'B) ; 510
+;(interpret "4test6.txt" 'A) ; 30
+;(interpret "4test6.txt" 'B) ; 530
+;(interpret "4test7.txt" 'A) ; 105
+;(interpret "4test7.txt" 'B) ; 1155
+;(interpret "4test8.txt" 'B) ; 615
 ;(interpret "4test9.txt" 'B) ; ERROR: variable not found: d
-(interpret "4test9.txt" 'C) ; 4321
+;(interpret "4test9.txt" 'C) ; 4321
+;(interpret "4test10.txt" 'Square) ; 400
+;(interpret "4test11.txt" 'A) ; 15
