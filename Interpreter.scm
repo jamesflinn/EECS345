@@ -20,12 +20,21 @@
 
 ;interprets all static variable and function declarations and puts them in the state
 (define interpret-static
-  (lambda (tree field-env function-env state throw class-env instance)
+  (lambda (tree field-env function-env instance-env state throw class-env instance)
     (cond
       ((null? tree) (list field-env function-env))
       ((eq? (identifier tree) 'static-var) (interpret-static (cdr tree) 
                                                              (MSdeclare (variable tree) (cddar tree) (append field-env (list (last-layer state))) throw class-env instance)
                                                              function-env 
+                                                             instance-env
+                                                             (MSdeclare (variable tree) (cddar tree) state throw class-env instance)
+                                                             throw 
+                                                             class-env 
+                                                             instance))
+      ((eq? (identifier tree) 'var) (interpret-static (cdr tree) 
+                                                             (MSdeclare (variable tree) (cddar tree) (append field-env (list (last-layer state))) throw class-env instance)
+                                                             function-env 
+                                                             instance-env
                                                              (MSdeclare (variable tree) (cddar tree) state throw class-env instance)
                                                              throw 
                                                              class-env 
@@ -33,10 +42,19 @@
       ((eq? (identifier tree) 'static-function) (interpret-static (cdr tree) 
                                                                   field-env 
                                                                   (MSfunction (function-name tree) (param-list tree) (function-body tree) function-env class-env instance) 
+                                                                  instance-env
                                                                   (MSfunction (function-name tree) (param-list tree) (function-body tree) state class-env instance) 
                                                                   throw 
                                                                   class-env 
                                                                   instance))
+      ((eq? (identifier tree) 'function) (interpret-static (cdr tree)
+                                                           field-env
+                                                           (MSfunction (function-name tree) (param-list tree) (function-body tree) function-env class-env instance)
+                                                           instance-env
+                                                           (MSfunction (function-name tree) (param-list tree) (function-body tree) state class-env instance) 
+                                                           throw 
+                                                           class-env 
+                                                           instance))
       ((else (error "unidentified identifier" (identifier tree)))))))
 
 ;helper function that inteprets a parse tree
@@ -227,7 +245,7 @@
                                               (append (valuelist (get-parent-funcs (get-parent parent) state temp-class temp-instance))
                                                       (valuelist (function-env class-env))))
                                         '())) ; instance variable names will go here
-                     state)) (interpret-static body initial-state initial-state state throw (create-class (get-parent parent) '() '() '())  instance))))
+                     state)) (interpret-static body initial-state initial-state '() state throw (create-class (get-parent parent) '() '() '())  instance))))
 
 (define get-parent
   (lambda (parent)
@@ -534,20 +552,21 @@
     (declared? variable (class-field-names class-env))))
       
 
-;(interpret "4test1.txt" 'A) ; 10
-;(interpret "4test2.txt" 'A) ; true
-;(interpret "4test3.txt" 'A) ; 30
-;(interpret "4test4.txt" 'A) ; false
-;(interpret "4test5.txt" 'A) ; 30
-;(interpret "4test5.txt" 'B) ; 510
-;(interpret "4test6.txt" 'A) ; 30
-;(interpret "4test6.txt" 'B) ; 530
-;(interpret "4test7.txt" 'A) ; 105
-;(interpret "4test7.txt" 'B) ; 1155
-;(interpret "4test8.txt" 'B) ; 615
+(interpret "4test1.txt" 'A) ; 10
+(interpret "4test2.txt" 'A) ; true
+(interpret "4test3.txt" 'A) ; 30
+(interpret "4test4.txt" 'A) ; false
+(interpret "4test5.txt" 'A) ; 30
+(interpret "4test5.txt" 'B) ; 510
+(interpret "4test6.txt" 'A) ; 30
+(interpret "4test6.txt" 'B) ; 530
+(interpret "4test7.txt" 'A) ; 105
+(interpret "4test7.txt" 'B) ; 1155
+(interpret "4test8.txt" 'B) ; 615
 ;(interpret "4test9.txt" 'B) ; ERROR: variable not found: d
-;(interpret "4test9.txt" 'C) ; 4321
-;(interpret "4test10.txt" 'Square) ; 400
-;(interpret "4test11.txt" 'A) ; 15
-; (interpret "4test12.txt" 'A) ; 125
-;(interpret "4test15.txt" 'Pow) ; 64
+(interpret "4test9.txt" 'C) ; 4321
+(interpret "4test10.txt" 'Square) ; 400
+(interpret "4test11.txt" 'A) ; 15
+(interpret "4test12.txt" 'A) ; 125
+(interpret "4test13.txt" 'A) ; 100
+(interpret "4test15.txt" 'Pow) ; 64
