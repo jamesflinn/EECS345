@@ -34,8 +34,8 @@
       ((eq? (identifier tree) 'var) (interpret-static (cdr tree) 
                                                       field-env
                                                       function-env 
+                                                      (MSdeclare (variable tree) (cddar tree) instance-env throw class-env instance)
                                                       (MSdeclare (variable tree) (cddar tree) state throw class-env instance)
-                                                      state
                                                       throw
                                                       class-env
                                                       instance))
@@ -93,7 +93,7 @@
       ((eq? 'true expression) (return #t))
       ((eq? 'false expression) (return #f))
       ((variable? expression) (return (if (eq? (MVenv-var expression state class-env instance) 'variable-not-found) (error "variable not found:" expression) (MVenv-var expression state class-env instance))))
-      ((eq? 'dot (operator expression)) (return (MVdot (caddr expression) state (get-class-dot (cadr expression) state class-env instance) (get-instance-dot (cadr expression) state))))
+      ((eq? 'dot (operator expression)) (return (MVdot (caddr expression) state (get-class-dot (cadr expression) state class-env instance) (get-instance-dot (cadr expression) state class-env instance))))
       ((function? expression) (return (MVfunction (fun-call-name expression) (fun-call-params expression) state (lambda (v) v) throw class-env instance)))
       ((eq? 'new (operator expression)) (MVnew (leftoperand expression) state class-env instance))
       ((eq? '+ (operator expression)) (MVexpression (leftoperand expression) state (lambda (v1) (MVexpression (rightoperand expression) state (lambda (v2) (return (+ v1 v2))) throw class-env instance)) throw class-env instance))
@@ -302,7 +302,7 @@
   (lambda (name state class-env instance)
     (cond
       ((eq? name 'super) (MVvariable (car class-env) state class-env instance))
-      ((eq? (length 2) (MVvariable name state class-env instance)) (MVvariable (car (MVvariable name state class-env instance)) state class-env instance)) ; an instance variable
+      ((eq? 2 (length (MVvariable name state class-env instance))) (MVvariable (car (MVvariable name state class-env instance)) state class-env instance)) ; an instance variable
       (else (MVvariable name state class-env instance)))))
 
 ; returns the instance of the left side of the dot
@@ -310,7 +310,7 @@
 (define get-instance-dot
   (lambda (name state class-env instance)
     (cond
-      ((eq? (length 2) (MVvariable name state class-env instance)) (MVvariable name state class-env instance))
+      ((eq? 2 (length (MVvariable name state class-env instance))) (MVvariable name state class-env instance))
       (else (create-instance (car (MVvariable name state class-env instance)) '())))))
 
 ;provides the state for a while loop
@@ -590,7 +590,7 @@
 ;(test "5test3.txt" 'B 530) ; 530
 ;(test "5test4.txt" 'B 615) ; 615
 ;(test "5test5.txt" 'C -716) ; -716
-(test "5test6.txt" 'A 15) ; 15
+;(test "5test6.txt" 'A 15) ; 15
 (test "5test7.txt" 'A 12) ; 12
 (test "5test8.txt" 'A 110) ; 110
 (test "5test9.txt" 'A 125) ; 125
