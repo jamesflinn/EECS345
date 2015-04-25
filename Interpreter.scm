@@ -296,12 +296,11 @@
         (MVclass-var right-side class-env instance)))) ; is a variable
 
 ; returns the class of the left side of the dot
-; currently only works with static stuff
-; for instances, must get class from instance
 (define get-class-dot
   (lambda (name state class-env instance)
     (cond
       ((eq? name 'super) (MVvariable (car class-env) state class-env instance))
+      ((eq? name 'this) (MVvariable (car instance) state class-env instance))
       ((eq? 2 (length (MVvariable name state class-env instance))) (MVvariable (car (MVvariable name state class-env instance)) state class-env instance)) ; an instance variable
       (else (MVvariable name state class-env instance)))))
 
@@ -310,6 +309,8 @@
 (define get-instance-dot
   (lambda (name state class-env instance)
     (cond
+      ((eq? name 'super) (MVnew (car class-env) state (MVvariable (car class-env) state class-env instance) instance))
+      ((eq? name 'this) instance)
       ((eq? 2 (length (MVvariable name state class-env instance))) (MVvariable name state class-env instance))
       (else (create-instance (car (MVvariable name state class-env instance)) '())))))
 
@@ -342,19 +343,27 @@
                                                                                                                                                                           (closure-state func-closure) 
                                                                                                                                                                           class-env instance) (list (last-layer state))) throw class-env instance)      
                                      return
-                                     'error throw (MVvariable (closure-class func-closure) state class-env instance) instance))) (get-func-closure name state class-env instance))))))
+                                     'error throw (MVvariable (closure-class func-closure) state class-env instance) (get-func-instance name state class-env instance)))) (get-func-closure name state class-env instance))))))
 
 ; returns the function closure using the function name, state, class environment, and instance
 (define get-func-closure
   (lambda (name state class-env instance)
-    (if (var-in-state? name state) (MVvariable name state class-env instance)
-        (MVvariable name (list (class-method-env (MVvariable (instance-class-name instance) state class-env instance)) (last-layer state)) class-env instance))))
+    (cond 
+      ((var-in-state? name state) (MVvariable name state class-env instance))
+      ((and (pair? name) (eq? 'dot (car name))) (MVvariable (caddr name) (list (class-method-env (MVvariable (cadr name) state class-env instance)) (last-layer state)) class-env instance))
+      (else (MVvariable name (list (class-method-env (MVvariable (instance-class-name instance) state class-env instance)) (last-layer state)) class-env instance)))))
 
 (define evaluate-params
   (lambda (values state return throw class-env instance)
     (cond
       ((null? values) (return '()))
       (else (evaluate-params (cdr values) state (lambda (v) (return (cons (MVexpression (car values) state (lambda (v1) v1) throw class-env instance) v))) throw class-env instance)))))
+
+(define get-func-instance
+  (lambda (name state class-env instance)
+    (cond
+      ((and (pair? name) (eq? 'dot (car name))) (MVvariable (cadr name) state class-env instance))
+      (else instance))))
 
 ;provides the state after a function call
 (define MSfunction
@@ -579,18 +588,18 @@
 ;(test "4test8.txt" 'B 615) ; 615
 ;(interpret "4test9.txt" 'B) ; ERROR: variable not found: d
 ;(test "4test9.txt" 'C 4321) ; 4321
-;(test "4test10.txt" 'Square 400) ; 400
-;(test "4test11.txt" 'A 15) ; 15
-;(test "4test12.txt" 'A 125) ; 125
-;(test "4test13.txt" 'A 100) ; 100
-;(test "4test15.txt" 'Pow 64) ; 64
+(test "4test10.txt" 'Square 400) ; 400
+(test "4test11.txt" 'A 15) ; 15
+(test "4test12.txt" 'A 125) ; 125
+(test "4test13.txt" 'A 100) ; 100
+(test "4test15.txt" 'Pow 64) ; 64
 
-;(test "5test1.txt" 'A 20) ; 20
-;(test "5test2.txt" 'Square 400) ; 400
-;(test "5test3.txt" 'B 530) ; 530
-;(test "5test4.txt" 'B 615) ; 615
-;(test "5test5.txt" 'C -716) ; -716
-;(test "5test6.txt" 'A 15) ; 15
+(test "5test1.txt" 'A 20) ; 20
+(test "5test2.txt" 'Square 400) ; 400
+(test "5test3.txt" 'B 530) ; 530
+(test "5test4.txt" 'B 615) ; 615
+(test "5test5.txt" 'C -716) ; -716
+(test "5test6.txt" 'A 15) ; 15
 (test "5test7.txt" 'A 12) ; 12
 (test "5test8.txt" 'A 110) ; 110
 (test "5test9.txt" 'A 125) ; 125
