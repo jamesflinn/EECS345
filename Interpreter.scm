@@ -270,7 +270,7 @@
 (define MVnew
   (lambda (name state class-env instance)
     (create-instance name
-                     (class-initial-values (MSvariable name state class-env instance)))))
+                     (class-initial-values (MVvariable name state class-env instance)))))
 
 ; checks if variable is in the class, if so, returns the value of the variable, otherwise returns #f
 (define MVclass-var
@@ -302,13 +302,16 @@
   (lambda (name state class-env instance)
     (cond
       ((eq? name 'super) (MVvariable (car class-env) state class-env instance))
+      ((eq? (length 2) (MVvariable name state class-env instance)) (MVvariable (car (MVvariable name state class-env instance)) state class-env instance)) ; an instance variable
       (else (MVvariable name state class-env instance)))))
 
 ; returns the instance of the left side of the dot
 ; currently returns null since we are only dealing with static things for now
 (define get-instance-dot
-  (lambda (name state)
-    (create-instance name '())))
+  (lambda (name state class-env instance)
+    (cond
+      ((eq? (length 2) (MVvariable name state class-env instance)) (MVvariable name state class-env instance))
+      (else (create-instance (car (MVvariable name state class-env instance)) '())))))
 
 ;provides the state for a while loop
 (define MSwhile
@@ -560,38 +563,38 @@
 ; used to test examples, returns error if not expected output
 (define test
   (lambda (filename classname expected-value)
-    (if (eq? (interpret filename classname) expected-value) #t
+    (if (eq? (interpret filename classname) expected-value) (list filename 'passed)
         (error "Error:" filename 'expected expected-value 'but 'was 'returned (interpret filename classname)))))
 
-(test "4test1.txt" 'A 10) ; 10
-(interpret "4test2.txt" 'A) ; true
-(interpret "4test3.txt" 'A) ; 30
-(interpret "4test4.txt" 'A) ; false
-(interpret "4test5.txt" 'A) ; 30
-(interpret "4test5.txt" 'B) ; 510
-(interpret "4test6.txt" 'A) ; 30
-(interpret "4test6.txt" 'B) ; 530
-(interpret "4test7.txt" 'A) ; 105
-(interpret "4test7.txt" 'B) ; 1155
-(interpret "4test8.txt" 'B) ; 615
+;(test "4test1.txt" 'A 10) ; 10
+;(test "4test2.txt" 'A 'true) ; true
+;(test "4test3.txt" 'A 30) ; 30
+;(test "4test4.txt" 'A 'false) ; false
+;(test "4test5.txt" 'A 30) ; 30
+;(test "4test5.txt" 'B 510) ; 510
+;(test "4test6.txt" 'A 30) ; 30
+;(test "4test6.txt" 'B 530) ; 530
+;(test "4test7.txt" 'A 105) ; 105
+;(test "4test7.txt" 'B 1155) ; 1155
+;(test "4test8.txt" 'B 615) ; 615
 ;(interpret "4test9.txt" 'B) ; ERROR: variable not found: d
-(interpret "4test9.txt" 'C) ; 4321
-(interpret "4test10.txt" 'Square) ; 400
-(interpret "4test11.txt" 'A) ; 15
-(interpret "4test12.txt" 'A) ; 125
-(interpret "4test13.txt" 'A) ; 100
-(interpret "4test15.txt" 'Pow) ; 64
+;(test "4test9.txt" 'C 4321) ; 4321
+;(test "4test10.txt" 'Square 400) ; 400
+;(test "4test11.txt" 'A 15) ; 15
+;(test "4test12.txt" 'A 125) ; 125
+;(test "4test13.txt" 'A 100) ; 100
+;(test "4test15.txt" 'Pow 64) ; 64
 
-(interpret "5test1.txt" 'A) ; 20
-(interpret "5test2.txt" 'Square) ; 400
-(interpret "5test3.txt" 'B) ; 530
-(interpret "5test4.txt" 'B) ; 615
-;(interpret "5test5.txt" 'C) ; -716
-(interpret "5test6.txt" 'A) ; 15
-(interpret "5test7.txt" 'A) ; 12
-(interpret "5test8.txt" 'A) ; 110
-(interpret "5test9.txt" 'A) ; 125
-(interpret "5test10.txt" 'A) ; 36
-(interpret "5test11.txt" 'A) ; 54
+;(test "5test1.txt" 'A 20) ; 20
+;(test "5test2.txt" 'Square 400) ; 400
+;(test "5test3.txt" 'B 530) ; 530
+;(test "5test4.txt" 'B 615) ; 615
+;(test "5test5.txt" 'C -716) ; -716
+(test "5test6.txt" 'A 15) ; 15
+(test "5test7.txt" 'A 12) ; 12
+(test "5test8.txt" 'A 110) ; 110
+(test "5test9.txt" 'A 125) ; 125
+(test "5test10.txt" 'A 36) ; 36
+(test "5test11.txt" 'A 54) ; 54
 
 
