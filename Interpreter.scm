@@ -642,5 +642,17 @@
 (test "5test9.txt" 'A 125) ; 125
 (test "5test10.txt" 'A 36) ; 36
 (test "5test11.txt" 'A 54) ; 54
+(test "5test12.txt" 'C 26)
+(test "5test13.txt" 'Square 117)
+(test "5test14.txt" 'Square 32)
+(test "5test15.txt" 'List 15)
+(test "5test16.txt" 'Box 16)
+(test "5test17.txt" 'List 123456)
+(test "5test18.txt" 'List 5285)
+(test "5test19.txt" 'A 100)
+(test "5test20.txt" 'A 420)
+(test "5test21.txt" 'A 10)
+(interpret "5test22.txt") ; ERROR
+
 
 
