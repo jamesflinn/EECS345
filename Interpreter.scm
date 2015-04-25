@@ -92,6 +92,7 @@
       ((boolean? expression) (return expression))
       ((eq? 'true expression) (return #t))
       ((eq? 'false expression) (return #f))
+      ((instance? expression state) (return expression))
       ((variable? expression) (return (if (eq? (MVenv-var expression state class-env instance) 'variable-not-found) (error "variable not found:" expression) (MVenv-var expression state class-env instance))))
       ((eq? 'dot (operator expression)) (return (MVdot (caddr expression) state (get-class-dot (cadr expression) state class-env instance) (get-instance-dot (cadr expression) state class-env instance))))
       ((function? expression) (return (MVfunction (fun-call-name expression) (fun-call-params expression) state (lambda (v) v) throw class-env instance)))
@@ -175,9 +176,10 @@
 (define MSassign-top
   (lambda (variable expression state tree return break throw class-env instance)
     (cond
-      ((and (pair? variable) (eq? 'dot (car variable))) (MSassign-top (caddr variable) expression state tree return break throw 
-                                                                      (get-class-dot (cadr variable) state class-env instance)
-                                                                      (get-instance-dot (cadr variable) state class-env instance)))
+      ((and (pair? variable) (eq? 'dot (car variable))) (MSassign-dot variable expression state tree return break throw class-env instance))
+                                                        ;(MSassign-top (caddr variable) expression state tree return break throw 
+                                                        ;              (get-class-dot (cadr variable) state class-env instance)
+                                                        ;              (get-instance-dot (cadr variable) state class-env instance)))
       ((var-in-state? variable state) (interpret-help (cdr tree) (MSassign-layer variable expression state state throw class-env instance) return break throw class-env instance))
       ((var-in-static? variable class-env) (interpret-help (cdr tree) state return break throw (create-class (car class-env)
                                                                                                              (MSassign variable 
@@ -186,8 +188,28 @@
                                                                                                              (class-method-env class-env)
                                                                                                              (class-field-names class-env)
                                                                                                              (class-initial-values class-env)) instance))
-      ((var-in-instance? variable class-env) '()) ; NOT COMPLETED
-      (else (error "undeclared variable" variable)))))                                                                                                                   
+      ((var-in-instance? variable class-env) (interpret-help (cdr tree) state return break throw class-env (create-instance (car instance)
+                                                                                                                            (valuelist (MSassign variable
+                                                                                                                                                 (MVexpression expression state return throw class-env instance)
+                                                                                                                                                 (list (class-field-names class-env) (cadr instance)) throw class-env instance)))))
+      (else (error "undeclared variable" variable)))))
+
+(define MSassign-dot
+  (lambda (dot-expr expression state tree return break throw class-env instance)
+    (cond
+      ((eq? 'this (leftside dot-expr)) (interpret-help (cdr tree) state return break throw class-env (create-instance (car instance)
+                                                                                                                      (valuelist (MSassign (rightside dot-expr)
+                                                                                                                                           (MVexpression expression state return throw class-env instance)
+                                                                                                                                           (list (class-field-names class-env) (cadr instance)) initial-state throw class-env instance)))))
+                                                     
+      ((instance? (MVvariable (leftside dot-expr) state class-env instance) state) (MSassign-top (cadr dot-expr)
+                                                                                           (valuelist (MSassign (rightside dot-expr)
+                                                                                                     (MVexpression expression state return throw class-env instance)
+                                                                                                     (list (class-field-names class-env) (cadr instance)) throw class-env instance))
+                                                                                           state tree return break throw class-env instance))
+      (else (MSassign-top (rightside dot-expr) expression state tree return break throw
+                          (get-class-dot (leftside dot-expr) state class-env instance)
+                          (get-instance-dot (leftside dot-expr) state class-env instance))))))
 
 ;helper function that deals with the layers
 (define MSassign-layer 
@@ -270,7 +292,13 @@
 (define MVnew
   (lambda (name state class-env instance)
     (create-instance name
-                     (class-initial-values (MVvariable name state class-env instance)))))
+                     (create-copy (class-initial-values (MVvariable name state class-env instance))))))
+
+(define create-copy
+  (lambda (l)
+    (cond
+      ((null? l) '())
+      (else (cons (box (unbox (car l))) (create-copy (cdr l)))))))
 
 ; checks if variable is in the class, if so, returns the value of the variable, otherwise returns #f
 (define MVclass-var
@@ -446,6 +474,10 @@
   (lambda (stmt)
     (cadddr (cdr stmt))))
 
+; these get elements out of the dot expr
+(define leftside cadr)
+(define rightside caddr)
+
 ; these get elements out of the instance env
 (define instance-field-values cadr)
 (define instance-class-name car)
@@ -544,6 +576,11 @@
   (lambda (expr)
     (eq? (car expr) 'funcall)))
 
+;determines if an expression is an instance
+(define instance?
+  (lambda (expr state)
+    (and (list? expr) (eq? 2 (length expr)) (declared? (car expr) (namelist (last-layer state))))))
+
 ; return true if if stmt has an else
 (define else?
   (lambda (stmt)
@@ -575,34 +612,34 @@
     (if (eq? (interpret filename classname) expected-value) (list filename 'passed)
         (error "Error:" filename 'expected expected-value 'but 'was 'returned (interpret filename classname)))))
 
-;(test "4test1.txt" 'A 10) ; 10
-;(test "4test2.txt" 'A 'true) ; true
-;(test "4test3.txt" 'A 30) ; 30
-;(test "4test4.txt" 'A 'false) ; false
-;(test "4test5.txt" 'A 30) ; 30
-;(test "4test5.txt" 'B 510) ; 510
-;(test "4test6.txt" 'A 30) ; 30
-;(test "4test6.txt" 'B 530) ; 530
-;(test "4test7.txt" 'A 105) ; 105
-;(test "4test7.txt" 'B 1155) ; 1155
-;(test "4test8.txt" 'B 615) ; 615
-;;(interpret "4test9.txt" 'B) ; ERROR: variable not found: d
-;(test "4test9.txt" 'C 4321) ; 4321
-;(test "4test10.txt" 'Square 400) ; 400
-;(test "4test11.txt" 'A 15) ; 15
-;(test "4test12.txt" 'A 125) ; 125
-;(test "4test13.txt" 'A 100) ; 100
-;(test "4test15.txt" 'Pow 64) ; 64
-;
-;(test "5test1.txt" 'A 20) ; 20
-;(test "5test2.txt" 'Square 400) ; 400
-;(test "5test3.txt" 'B 530) ; 530
-;(test "5test4.txt" 'B 615) ; 615
-;;(test "5test5.txt" 'C -716) ; -716
-;(test "5test6.txt" 'A 15) ; 15
-;(test "5test7.txt" 'A 12) ; 12
-;(test "5test8.txt" 'A 110) ; 110
-;(test "5test9.txt" 'A 125) ; 125
+(test "4test1.txt" 'A 10) ; 10
+(test "4test2.txt" 'A 'true) ; true
+(test "4test3.txt" 'A 30) ; 30
+(test "4test4.txt" 'A 'false) ; false
+(test "4test5.txt" 'A 30) ; 30
+(test "4test5.txt" 'B 510) ; 510
+(test "4test6.txt" 'A 30) ; 30
+(test "4test6.txt" 'B 530) ; 530
+(test "4test7.txt" 'A 105) ; 105
+(test "4test7.txt" 'B 1155) ; 1155
+(test "4test8.txt" 'B 615) ; 615
+;(interpret "4test9.txt" 'B) ; ERROR: variable not found: d
+(test "4test9.txt" 'C 4321) ; 4321
+(test "4test10.txt" 'Square 400) ; 400
+(test "4test11.txt" 'A 15) ; 15
+(test "4test12.txt" 'A 125) ; 125
+(test "4test13.txt" 'A 100) ; 100
+(test "4test15.txt" 'Pow 64) ; 64
+
+(test "5test1.txt" 'A 20) ; 20
+(test "5test2.txt" 'Square 400) ; 400
+(test "5test3.txt" 'B 530) ; 530
+(test "5test4.txt" 'B 615) ; 615
+;(test "5test5.txt" 'C -716) ; -716
+(test "5test6.txt" 'A 15) ; 15
+(test "5test7.txt" 'A 12) ; 12
+(test "5test8.txt" 'A 110) ; 110
+(test "5test9.txt" 'A 125) ; 125
 (test "5test10.txt" 'A 36) ; 36
 (test "5test11.txt" 'A 54) ; 54
 
