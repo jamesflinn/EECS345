@@ -629,30 +629,30 @@
     (if (eq? (interpret filename classname) expected-value) (list filename 'passed)
         (error "Error:" filename 'expected expected-value 'but 'was 'returned (interpret filename classname)))))
 
-(test "4test1.txt" 'A 10) ; 10
-(test "4test2.txt" 'A 'true) ; true
-(test "4test3.txt" 'A 30) ; 30
-(test "4test4.txt" 'A 'false) ; false
-(test "4test5.txt" 'A 30) ; 30
-(test "4test5.txt" 'B 510) ; 510
-(test "4test6.txt" 'A 30) ; 30
-(test "4test6.txt" 'B 530) ; 530
-(test "4test7.txt" 'A 105) ; 105
-(test "4test7.txt" 'B 1155) ; 1155
-(test "4test8.txt" 'B 615) ; 615
-;(interpret "4test9.txt" 'B) ; ERROR: variable not found: d
-(test "4test9.txt" 'C 4321) ; 4321
-(test "4test10.txt" 'Square 400) ; 400
-(test "4test11.txt" 'A 15) ; 15
-(test "4test12.txt" 'A 125) ; 125
-(test "4test13.txt" 'A 100) ; 100
-(test "4test14.txt" 'A 2000400)
-(test "4test15.txt" 'Pow 64) ; 64
-
-(test "5test1.txt" 'A 20) ; 20
-(test "5test2.txt" 'Square 400) ; 400
-(test "5test3.txt" 'B 530) ; 530
-(test "5test4.txt" 'B 615) ; 615
+;(test "4test1.txt" 'A 10) ; 10
+;(test "4test2.txt" 'A 'true) ; true
+;(test "4test3.txt" 'A 30) ; 30
+;(test "4test4.txt" 'A 'false) ; false
+;(test "4test5.txt" 'A 30) ; 30
+;(test "4test5.txt" 'B 510) ; 510
+;(test "4test6.txt" 'A 30) ; 30
+;(test "4test6.txt" 'B 530) ; 530
+;(test "4test7.txt" 'A 105) ; 105
+;(test "4test7.txt" 'B 1155) ; 1155
+;(test "4test8.txt" 'B 615) ; 615
+;;(interpret "4test9.txt" 'B) ; ERROR: variable not found: d
+;(test "4test9.txt" 'C 4321) ; 4321
+;(test "4test10.txt" 'Square 400) ; 400
+;(test "4test11.txt" 'A 15) ; 15
+;(test "4test12.txt" 'A 125) ; 125
+;(test "4test13.txt" 'A 100) ; 100
+;(test "4test14.txt" 'A 2000400)
+;(test "4test15.txt" 'Pow 64) ; 64
+;
+;(test "5test1.txt" 'A 20) ; 20
+;(test "5test2.txt" 'Square 400) ; 400
+;(test "5test3.txt" 'B 530) ; 530
+;(test "5test4.txt" 'B 615) ; 615
 (test "5test5.txt" 'C -716) ; -716
 (test "5test6.txt" 'A 15) ; 15
 (test "5test7.txt" 'A 12) ; 12
