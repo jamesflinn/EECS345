@@ -67,7 +67,7 @@
       ((eq? (identifier tree) 'var) (interpret-help (cdr tree) (MSdeclare (variable tree) (cddar tree) state throw class-env instance) return break throw class-env instance))
       ((eq? (identifier tree) '=) (MSassign-top (variable tree) (expression-stmt tree) state tree return break throw class-env instance))
       ((eq? (identifier tree) 'if) (interpret-help (cdr tree)
-                                                   (if (MVcondition (condition-stmt tree) state return throw class-env instance)
+                                                   (if (check-condition (MVcondition (condition-stmt tree) state return throw class-env instance))
                                                        (interpret-help (cons (then-stmt tree) '()) state return break throw class-env instance)
                                                        (if (else? (car tree))
                                                            (interpret-help (cons (else-stmt tree) '()) state return break throw class-env instance)
@@ -120,6 +120,7 @@
       ((eq? 'true condition ) (return #t))
       ((eq? 'false condition ) (return #f))
       ((variable? condition) (return (MVenv-var condition state class-env instance)))
+      ((function? condition) (return (MVfunction (fun-call-name condition) (fun-call-params condition) state (lambda (v) v) throw class-env instance)))
       ((eq? '! (operator condition)) (MVcondition (leftoperand condition) state (lambda (v) (return (not v))) throw class-env instance))
       ((eq? '> (operator condition)) (MVexpression (leftoperand condition) state (lambda (v1) (MVexpression (rightoperand condition) state (lambda (v2) (return (> v1 v2))) throw class-env instance)) throw class-env instance))
       ((eq? '>= (operator condition)) (MVexpression (leftoperand condition) state (lambda (v1) (MVexpression (rightoperand condition) state (lambda (v2) (return (>= v1 v2)))throw class-env instance))throw class-env instance))
@@ -566,6 +567,12 @@
 (define last-layer
   (lambda (state)
     (car (reverse state))))
+
+(define check-condition
+  (lambda (condition)
+    (cond
+      ((or (eq? condition 'true) condition) #t)
+      (else #f))))
 
 ;this determines if an expression is unary
 (define unary? 
