@@ -94,7 +94,7 @@
       ((eq? 'false expression) (return #f))
       ((instance? expression state) (return expression))
       ((variable? expression) (return (if (eq? (MVenv-var expression state class-env instance) 'variable-not-found) (error "variable not found:" expression) (MVenv-var expression state class-env instance))))
-      ((eq? 'dot (operator expression)) (return (MVdot (caddr expression) state (get-class-dot (cadr expression) state class-env instance) (get-instance-dot (cadr expression) state class-env instance))))
+      ((eq? 'dot (operator expression)) (return (MVdot (caddr expression) state (get-class-dot (cadr expression) state return throw class-env instance) (get-instance-dot (cadr expression) state return throw class-env instance))))
       ((function? expression) (return (MVfunction (fun-call-name expression) (fun-call-params expression) state (lambda (v) v) throw class-env instance)))
       ((eq? 'new (operator expression)) (MVnew (leftoperand expression) state class-env instance))
       ((eq? '+ (operator expression)) (MVexpression (leftoperand expression) state (lambda (v1) (MVexpression (rightoperand expression) state (lambda (v2) (return (+ v1 v2))) throw class-env instance)) throw class-env instance))
@@ -149,7 +149,7 @@
       ((eq? variable 'false) #f)
       ((null? state) (error "undeclared-variable:" variable))
       ((null? (namelist (top-layer state))) (MVvariable variable (remove-layer state) class-env instance))
-      ((and (pair? variable) (eq? (car variable) 'dot)) (MVdot (caddr variable) state (get-class-dot (cadr variable) state class-env instance) (get-instance-dot (cadr variable) state class-env instance))) 
+      ((and (pair? variable) (eq? (car variable) 'dot)) (MVdot (caddr variable) state (get-class-dot (cadr variable) state (lambda (v) v) (lambda (v) v) class-env instance) (get-instance-dot (cadr variable) state (lambda (v) v) (lambda (v) v) class-env instance))) 
       ((eq? (car (namelist (top-layer state))) variable) (get-var (length (cdr (namelist (top-layer state)))) (valuelist (top-layer state))))
       (else (MVvariable variable (cons (cons (cdr (namelist (top-layer state))) 
                                              (cons (valuelist (top-layer state)) 
@@ -209,8 +209,8 @@
                                                                                                      (list (class-field-names class-env) (cadr instance)) throw class-env instance))
                                                                                            state tree return break throw class-env instance))
       (else (MSassign-top (rightside dot-expr) expression state tree return break throw
-                          (get-class-dot (leftside dot-expr) state class-env instance)
-                          (get-instance-dot (leftside dot-expr) state class-env instance))))))
+                          (get-class-dot (leftside dot-expr) state return break class-env instance)
+                          (get-instance-dot (leftside dot-expr) state return break class-env instance))))))
 
 ;helper function that deals with the layers
 (define MSassign-layer 
@@ -345,7 +345,7 @@
       ((eq? name 'super) (MVvariable (car class-env) state class-env instance))
       ((eq? name 'this) (MVvariable (car instance) state class-env instance))
       ((var-in-instance? name class-env) (MVvariable (instance-class-name (MVvariable name (get-instance-state class-env instance) class-env instance)) state class-env instance))
-      ((and (pair? name) (eq? 'funcall (car name))) (MVvariable (instance-class-name (MVexpression name state return throw class-env instance)) class-env instance)) 
+      ((and (pair? name) (eq? 'funcall (car name))) (MVvariable (instance-class-name (MVexpression name state return throw class-env instance)) state class-env instance)) 
       ((eq? 2 (length (MVvariable name state class-env instance))) (MVvariable (instance-class-name (MVvariable name state class-env instance)) state class-env instance)) ; an instance variable
       (else (MVvariable name state class-env instance)))))
 
@@ -373,7 +373,7 @@
 
 ;provides the value for a function call
 (define MVfunction
-  (lambda (name values state return break throw class-env instance)
+  (lambda (name values state return throw class-env instance)
     (cond
       ((eq? name 'main) (return (interpret-help (closure-body (MVvariable name state class-env instance))
                                                 (append (closure-state (MVvariable name state class-env instance)) (last-layer state))
@@ -389,11 +389,11 @@
                                                                                                                                                                           (closure-state func-closure) 
                                                                                                                                                                           class-env instance) (list (last-layer state))) throw class-env instance)      
                                      return
-                                     'error throw (MVvariable (closure-class func-closure) state class-env instance) (get-func-instance name state class-env instance)))) (get-func-closure name state return break class-env instance))))))
+                                     'error throw (MVvariable (closure-class func-closure) state class-env instance) (get-func-instance name state return throw class-env instance)))) (get-func-closure name state return throw class-env instance))))))
 
 ; returns the function closure using the function name, state, class environment, and instance
 (define get-func-closure
-  (lambda (name state return break class-env instance)
+  (lambda (name state return throw class-env instance)
     (cond 
       ((and (not (null? (instance-class-name instance))) (var-in-class-method? name (MVvariable (instance-class-name instance) state class-env instance))) 
        (MVvariable name (list (class-method-env (MVvariable (instance-class-name instance) state class-env instance)) (last-layer state)) class-env instance))
@@ -408,9 +408,9 @@
       (else (evaluate-params (cdr values) state (lambda (v) (return (cons (MVexpression (car values) state (lambda (v1) v1) throw class-env instance) v))) throw class-env instance)))))
 
 (define get-func-instance
-  (lambda (name state class-env instance)
+  (lambda (name state return throw class-env instance)
     (cond
-      ((and (pair? name) (eq? 'dot (car name))) (get-instance-dot (cadr name) state class-env instance));(MVvariable (cadr name) state class-env instance))
+      ((and (pair? name) (eq? 'dot (car name))) (get-instance-dot (cadr name) state return throw class-env instance));(MVvariable (cadr name) state class-env instance))
       (else instance))))
 
 ;provides the state after a function call
@@ -654,40 +654,40 @@
     (if (eq? (interpret filename classname) expected-value) (list filename 'passed)
         (error "Error:" filename 'expected expected-value 'but 'was 'returned (interpret filename classname)))))
 
-;(test "4test1.txt" 'A 10) ; 10
-;(test "4test2.txt" 'A 'true) ; true
-;(test "4test3.txt" 'A 30) ; 30
-;(test "4test4.txt" 'A 'false) ; false
-;(test "4test5.txt" 'A 30) ; 30
-;(test "4test5.txt" 'B 510) ; 510
-;(test "4test6.txt" 'A 30) ; 30
-;(test "4test6.txt" 'B 530) ; 530
-;(test "4test7.txt" 'A 105) ; 105
-;(test "4test7.txt" 'B 1155) ; 1155
-;(test "4test8.txt" 'B 615) ; 615
-;;(interpret "4test9.txt" 'B) ; ERROR: variable not found: d
-;(test "4test9.txt" 'C 4321) ; 4321
-;(test "4test10.txt" 'Square 400) ; 400
-;(test "4test11.txt" 'A 15) ; 15
-;(test "4test12.txt" 'A 125) ; 125
-;(test "4test13.txt" 'A 100) ; 100
-;(test "4test14.txt" 'A 2000400)
-;(test "4test15.txt" 'Pow 64) ; 64
-;
-;(test "5test1.txt" 'A 20) ; 20
-;(test "5test2.txt" 'Square 400) ; 400
-;(test "5test3.txt" 'B 530) ; 530
-;(test "5test4.txt" 'B 615) ; 615
-;;(test "5test5.txt" 'C -716) ; -716
-;(test "5test6.txt" 'A 15) ; 15
-;(test "5test7.txt" 'A 12) ; 12
-;(test "5test8.txt" 'A 110) ; 110
-;(test "5test9.txt" 'A 125) ; 125
-;(test "5test10.txt" 'A 36) ; 36
-;(test "5test11.txt" 'A 54) ; 54
-;(test "5test12.txt" 'C 26)
-;(test "5test13.txt" 'Square 117)
-;(test "5test14.txt" 'Square 32)
+(test "4test1.txt" 'A 10) ; 10
+(test "4test2.txt" 'A 'true) ; true
+(test "4test3.txt" 'A 30) ; 30
+(test "4test4.txt" 'A 'false) ; false
+(test "4test5.txt" 'A 30) ; 30
+(test "4test5.txt" 'B 510) ; 510
+(test "4test6.txt" 'A 30) ; 30
+(test "4test6.txt" 'B 530) ; 530
+(test "4test7.txt" 'A 105) ; 105
+(test "4test7.txt" 'B 1155) ; 1155
+(test "4test8.txt" 'B 615) ; 615
+;(interpret "4test9.txt" 'B) ; ERROR: variable not found: d
+(test "4test9.txt" 'C 4321) ; 4321
+(test "4test10.txt" 'Square 400) ; 400
+(test "4test11.txt" 'A 15) ; 15
+(test "4test12.txt" 'A 125) ; 125
+(test "4test13.txt" 'A 100) ; 100
+(test "4test14.txt" 'A 2000400)
+(test "4test15.txt" 'Pow 64) ; 64
+
+(test "5test1.txt" 'A 20) ; 20
+(test "5test2.txt" 'Square 400) ; 400
+(test "5test3.txt" 'B 530) ; 530
+(test "5test4.txt" 'B 615) ; 615
+;(test "5test5.txt" 'C -716) ; -716
+(test "5test6.txt" 'A 15) ; 15
+(test "5test7.txt" 'A 12) ; 12
+(test "5test8.txt" 'A 110) ; 110
+(test "5test9.txt" 'A 125) ; 125
+(test "5test10.txt" 'A 36) ; 36
+(test "5test11.txt" 'A 54) ; 54
+(test "5test12.txt" 'C 26)
+(test "5test13.txt" 'Square 117)
+(test "5test14.txt" 'Square 32)
 (test "5test15.txt" 'List 15)
 (test "5test16.txt" 'Box 16)
 (test "5test17.txt" 'List 123456)
