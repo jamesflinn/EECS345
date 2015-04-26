@@ -80,7 +80,7 @@
       ((eq? (identifier tree) 'break) (break (remove-layer state)))
       ((eq? (identifier tree) 'function) (interpret-help (cdr tree) (MSfunction (function-name tree) (param-list tree) (function-body tree) state class-env instance) return break throw class-env instance))
       ((eq? (identifier tree) 'funcall) (interpret-help (cdr tree) (begin (MVfunction (fun-call-name (car tree)) (fun-call-params (car tree)) state (lambda (v) v) throw class-env instance) state) return break throw class-env instance))
-      ((eq? (identifier tree) 'try) (interpret-help (cdr tree) (MStry (try-body tree) (catch-body tree) (finally-body tree) state return break throw class-env instance) return break throw class-env instance))
+      ((eq? (identifier tree) 'try) (interpret-help (cdr tree) (MSexception (try-body tree) (catch-body tree) (finally-body tree) state return break throw class-env instance) return break throw class-env instance))
       ((eq? (identifier tree) 'throw) (throw (MVexpression (cadar tree) state return throw class-env instance)))
       (else (error "bad-identifier" (identifier tree)))))) 
 
@@ -191,7 +191,7 @@
       ((var-in-instance? variable class-env) (interpret-help (cdr tree) state return break throw class-env (create-instance (car instance)
                                                                                                                             (valuelist (MSassign variable
                                                                                                                                                  (MVexpression expression state return throw class-env instance)
-                                                                                                                                                 (list (class-field-names class-env) (cadr instance)) throw class-env instance)))))
+                                                                                                                                                 (list (class-field-names class-env) (cadr instance)) state throw class-env instance))))) 
       (else (error "undeclared variable" variable)))))
 
 (define MSassign-dot
@@ -261,8 +261,10 @@
                                                       (namelist (get-parent-funcs (get-parent parent) state temp-class temp-instance)))
                                               (append (valuelist (get-parent-funcs (get-parent parent) state temp-class temp-instance))
                                                       (valuelist (function-env class-env))))
-                                        (namelist (instance-env class-env))
-                                        (valuelist (instance-env class-env))))
+                                        (append (namelist (instance-env class-env))
+                                                (get-parent-instance-names (get-parent parent) state temp-class temp-instance))
+                                        (append (get-parent-initial-values (get-parent parent) state temp-class temp-instance)
+                                                (valuelist (instance-env class-env)))))
                      state)) (interpret-static body initial-state initial-state initial-state state throw (create-class (get-parent parent) '() '() '() '())  instance))))
 
 (define get-parent
@@ -282,6 +284,18 @@
     (cond
       ((null? parent) layer)
       (else (class-method-env (MVvariable parent state class-env instance))))))
+
+(define get-parent-instance-names
+  (lambda (parent state class-env instance)
+    (cond
+      ((null? parent) '())
+      (else (class-field-names (MVvariable parent state class-env instance))))))
+
+(define get-parent-initial-values
+  (lambda (parent state class-env instance)
+    (cond
+      ((null? parent) '())
+      (else (class-initial-values (MVvariable parent state class-env instance))))))
 
 ; returns a list in the form of (parent static-field-env method-env instance-field-names)
 (define create-class
@@ -333,11 +347,10 @@
       (else (MVvariable name state class-env instance)))))
 
 ; returns the instance of the left side of the dot
-; currently returns null since we are only dealing with static things for now
 (define get-instance-dot
   (lambda (name state class-env instance)
     (cond
-      ((eq? name 'super) (MVnew (car class-env) state (MVvariable (car class-env) state class-env instance) instance))
+      ((eq? name 'super) instance);(MVnew (car class-env) state (MVvariable (car class-env) state class-env instance) instance))
       ((eq? name 'this) instance)
       ((eq? 2 (length (MVvariable name state class-env instance))) (MVvariable name state class-env instance))
       (else (create-instance (car (MVvariable name state class-env instance)) '())))))
@@ -425,23 +438,27 @@
                 (list (append (valuelist (top-layer state)) (list value))))
           (cdr state))))
 
-(define MStry
+(define MSexception
   (lambda (try-body catch-body finally-body state return break throw class-env instance)
-    (interpret-help finally-body
-                    (call/cc
-                     (lambda (throw)
-                       (interpret-help try-body 
-                                    state
-                                    return
-                                    break
-                                    (lambda (v) (throw (interpret-help catch-body (add-to-state 'e (box v) state) return break throw class-env instance)))
-                                    class-env
-                                    instance)))
-                    return 
-                    break
-                    throw
-                    class-env
-                    instance)))
+    ((lambda (try-state)
+       (MSfinally finally-body try-state return break throw class-env instance))
+     (MStry try-body catch-body state return break throw class-env instance))))
+
+(define MStry
+  (lambda (try-body catch-body state return break throw class-env instance)
+    (call/cc
+     (lambda (new-throw)
+       (remove-layer (interpret-help try-body (new-layer state) return break 
+                                     (lambda (v) (new-throw (MScatch catch-body (add-to-state 'e (box v) state) return break throw class-env instance))) class-env instance))))))
+
+(define MScatch
+  (lambda (catch-body state return break throw class-env instance)
+    (remove-layer (interpret-help catch-body (new-layer state) return break throw class-env instance))))
+
+(define MSfinally
+  (lambda (finally-body state return break throw class-env instance)
+    (remove-layer (interpret-help finally-body (new-layer state) return break throw class-env instance))))
+       
 
 ;ABSTRACTIONS
 ;the empty state
@@ -629,13 +646,14 @@
 (test "4test11.txt" 'A 15) ; 15
 (test "4test12.txt" 'A 125) ; 125
 (test "4test13.txt" 'A 100) ; 100
+(test "4test14.txt" 'A 2000400)
 (test "4test15.txt" 'Pow 64) ; 64
 
 (test "5test1.txt" 'A 20) ; 20
 (test "5test2.txt" 'Square 400) ; 400
 (test "5test3.txt" 'B 530) ; 530
 (test "5test4.txt" 'B 615) ; 615
-;(test "5test5.txt" 'C -716) ; -716
+(test "5test5.txt" 'C -716) ; -716
 (test "5test6.txt" 'A 15) ; 15
 (test "5test7.txt" 'A 12) ; 12
 (test "5test8.txt" 'A 110) ; 110
