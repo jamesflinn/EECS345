@@ -41,17 +41,17 @@
                                                       instance))
       ((eq? (identifier tree) 'static-function) (interpret-static (cdr tree) 
                                                                   field-env 
-                                                                  (MSfunction (function-name tree) (param-list tree) (function-body tree) function-env class-env instance) 
+                                                                  (MSfunction (function-name tree) (param-list tree) (function-body tree) function-env #t class-env instance) 
                                                                   instance-env
-                                                                  (MSfunction (function-name tree) (param-list tree) (function-body tree) state class-env instance) 
+                                                                  (MSfunction (function-name tree) (param-list tree) (function-body tree) state #t class-env instance) 
                                                                   throw 
                                                                   class-env 
                                                                   instance))
       ((eq? (identifier tree) 'function) (interpret-static (cdr tree)
                                                            field-env
-                                                           (MSfunction (function-name tree) (param-list tree) (function-body tree) function-env class-env instance)
+                                                           (MSfunction (function-name tree) (param-list tree) (function-body tree) function-env #f class-env instance)
                                                            instance-env
-                                                           (MSfunction (function-name tree) (param-list tree) (function-body tree) state class-env instance) 
+                                                           (MSfunction (function-name tree) (param-list tree) (function-body tree) state #f class-env instance) 
                                                            throw 
                                                            class-env 
                                                            instance))
@@ -78,7 +78,7 @@
       ((eq? (identifier tree) 'while) (interpret-help (cdr tree) (MSwhile (while-condition tree) (while-body tree) state return throw class-env instance) return break throw class-env instance))
       ((eq? (identifier tree) 'continue) state)
       ((eq? (identifier tree) 'break) (break (remove-layer state)))
-      ((eq? (identifier tree) 'function) (interpret-help (cdr tree) (MSfunction (function-name tree) (param-list tree) (function-body tree) state class-env instance) return break throw class-env instance))
+      ((eq? (identifier tree) 'function) (interpret-help (cdr tree) (MSfunction (function-name tree) (param-list tree) (function-body tree) state #f class-env instance) return break throw class-env instance))
       ((eq? (identifier tree) 'funcall) (interpret-help (cdr tree) (begin (MVfunction (fun-call-name (car tree)) (fun-call-params (car tree)) state (lambda (v) v) throw class-env instance) state) return break throw class-env instance))
       ((eq? (identifier tree) 'try) (interpret-help (cdr tree) (MSexception (try-body tree) (catch-body tree) (finally-body tree) (catch-var tree) state return break throw class-env instance) return break throw class-env instance))
       ((eq? (identifier tree) 'throw) (throw (MVexpression (cadar tree) state return throw class-env instance)))
@@ -390,6 +390,7 @@
                                                                                                                                                                           (closure-params func-closure) 
                                                                                                                                                                           (closure-body func-closure) 
                                                                                                                                                                           (closure-state func-closure) 
+                                                                                                                                                                          (closure-static func-closure)
                                                                                                                                                                           class-env instance) (list (last-layer state))) throw class-env instance)      
                                      return
                                      'error throw (MVvariable (closure-class func-closure) state class-env instance) (get-func-instance name state return throw class-env instance)))) (get-func-closure name state return throw class-env instance))))))
@@ -418,15 +419,15 @@
 
 ;provides the state after a function call
 (define MSfunction
-  (lambda (name paramlist body state class-env instance)
+  (lambda (name paramlist body state is-static class-env instance)
     (add-to-state name
-                  (box (list paramlist body (new-layer state) (instance-class-name instance)))
+                  (box (list paramlist body (new-layer state) (instance-class-name instance) is-static))
                   state)))
 
 ;used to return the state we will execute the body of a function in 
 (define make-closure-state
-  (lambda (name paramlist body state class-env instance) 
-    (MSfunction name paramlist body state class-env instance)))
+  (lambda (name paramlist body state is-static class-env instance) 
+    (MSfunction name paramlist body state is-static class-env instance)))
 
 ;adds parameters to the state
 (define addparams
@@ -557,6 +558,9 @@
 (define closure-body cadr)
 (define closure-state caddr)
 (define closure-class cadddr)
+(define closure-static
+  (lambda (stmt)
+    (cadddr (cdr stmt))))
 
 ;function call stuff
 (define fun-call-name cadr)
@@ -660,48 +664,48 @@
     (if (eq? (interpret filename classname) expected-value) (list filename 'passed)
         (error "Error:" filename 'expected expected-value 'but 'was 'returned (interpret filename classname)))))
 
-;(test "4test1.txt" 'A 10) ; 10
-;(test "4test2.txt" 'A 'true) ; true
-;(test "4test3.txt" 'A 30) ; 30
-;(test "4test4.txt" 'A 'false) ; false
-;(test "4test5.txt" 'A 30) ; 30
-;(test "4test5.txt" 'B 510) ; 510
-;(test "4test6.txt" 'A 30) ; 30
-;(test "4test6.txt" 'B 530) ; 530
-;(test "4test7.txt" 'A 105) ; 105
-;(test "4test7.txt" 'B 1155) ; 1155
-;(test "4test8.txt" 'B 615) ; 615
-;;(interpret "4test9.txt" 'B) ; ERROR: variable not found: d
-;(test "4test9.txt" 'C 4321) ; 4321
-;(test "4test10.txt" 'Square 400) ; 400
-;(test "4test11.txt" 'A 15) ; 15
-;(test "4test12.txt" 'A 125) ; 125
-;(test "4test13.txt" 'A 100) ; 100
-;(test "4test14.txt" 'A 2000400)
-;(test "4test15.txt" 'Pow 64) ; 64
-;
-;(test "5test1.txt" 'A 20) ; 20
-;(test "5test2.txt" 'Square 400) ; 400
-;(test "5test3.txt" 'B 530) ; 530
-;(test "5test4.txt" 'B 615) ; 615
-;;(test "5test5.txt" 'C -716) ; -716
-;(test "5test6.txt" 'A 15) ; 15
-;(test "5test7.txt" 'A 12) ; 12
-;(test "5test8.txt" 'A 110) ; 110
-;(test "5test9.txt" 'A 125) ; 125
-;(test "5test10.txt" 'A 36) ; 36
-;(test "5test11.txt" 'A 54) ; 54
-;(test "5test12.txt" 'C 26)
-;(test "5test13.txt" 'Square 117)
-;(test "5test14.txt" 'Square 32)
-;(test "5test15.txt" 'List 15)
-;(test "5test16.txt" 'Box 16)
+(test "4test1.txt" 'A 10) ; 10
+(test "4test2.txt" 'A 'true) ; true
+(test "4test3.txt" 'A 30) ; 30
+(test "4test4.txt" 'A 'false) ; false
+(test "4test5.txt" 'A 30) ; 30
+(test "4test5.txt" 'B 510) ; 510
+(test "4test6.txt" 'A 30) ; 30
+(test "4test6.txt" 'B 530) ; 530
+(test "4test7.txt" 'A 105) ; 105
+(test "4test7.txt" 'B 1155) ; 1155
+(test "4test8.txt" 'B 615) ; 615
+;(interpret "4test9.txt" 'B) ; ERROR: variable not found: d
+(test "4test9.txt" 'C 4321) ; 4321
+(test "4test10.txt" 'Square 400) ; 400
+(test "4test11.txt" 'A 15) ; 15
+(test "4test12.txt" 'A 125) ; 125
+(test "4test13.txt" 'A 100) ; 100
+(test "4test14.txt" 'A 2000400)
+(test "4test15.txt" 'Pow 64) ; 64
+
+(test "5test1.txt" 'A 20) ; 20
+(test "5test2.txt" 'Square 400) ; 400
+(test "5test3.txt" 'B 530) ; 530
+(test "5test4.txt" 'B 615) ; 615
+;(test "5test5.txt" 'C -716) ; -716
+(test "5test6.txt" 'A 15) ; 15
+(test "5test7.txt" 'A 12) ; 12
+(test "5test8.txt" 'A 110) ; 110
+(test "5test9.txt" 'A 125) ; 125
+(test "5test10.txt" 'A 36) ; 36
+(test "5test11.txt" 'A 54) ; 54
+(test "5test12.txt" 'C 26)
+(test "5test13.txt" 'Square 117)
+(test "5test14.txt" 'Square 32)
+(test "5test15.txt" 'List 15)
+(test "5test16.txt" 'Box 16)
 ;(test "5test17.txt" 'List 123456)
 ;(test "5test18.txt" 'List 5285)
-;(test "5test19.txt" 'A 100)
-;(test "5test20.txt" 'A 420)
+(test "5test19.txt" 'A 100)
+(test "5test20.txt" 'A 420)
 (test "5test21.txt" 'A 10)
-(interpret "5test22.txt") ; ERROR
+(interpret "5test22.txt" 'A) ; ERROR
 
 
 
