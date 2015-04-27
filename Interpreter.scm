@@ -346,7 +346,7 @@
   (lambda (name state return throw class-env instance)
     (cond
       ((eq? name 'super) (MVvariable (car class-env) state class-env instance))
-      ((eq? name 'this) (MVvariable (car instance) state class-env instance))
+      ((eq? name 'this) (if (static? instance) (error "no this") (MVvariable (car instance) state class-env instance)))
       ((var-in-instance? name class-env) (MVvariable (instance-class-name (MVvariable name (get-instance-state class-env instance) class-env instance)) state class-env instance))
       ((and (pair? name) (eq? 'funcall (car name))) (MVvariable (instance-class-name (MVexpression name state return throw class-env instance)) state class-env instance)) 
       ((eq? 2 (length (MVvariable name state class-env instance))) (MVvariable (instance-class-name (MVvariable name state class-env instance)) state class-env instance)) ; an instance variable
@@ -357,7 +357,7 @@
   (lambda (name state return throw class-env instance)
     (cond
       ((eq? name 'super) instance);(MVnew (car class-env) state (MVvariable (car class-env) state class-env instance) instance))
-      ((eq? name 'this) instance)
+      ((eq? name 'this) (if (static? instance) (error "no this") instance))
       ((var-in-instance? name class-env) (MVvariable name (get-instance-state class-env instance) class-env instance))
       ((and (pair? name) (eq? 'funcall (car name))) (MVexpression name state return throw class-env instance))
       ((eq? 2 (length (MVvariable name state class-env instance))) (MVvariable name state class-env instance))
@@ -393,7 +393,7 @@
                                                                                                                                                                           (closure-static func-closure)
                                                                                                                                                                           class-env instance) (list (last-layer state))) throw class-env instance)      
                                      return
-                                     'error throw (MVvariable (closure-class func-closure) state class-env instance) (get-func-instance name state return throw class-env instance)))) (get-func-closure name state return throw class-env instance))))))
+                                     'error throw (MVvariable (closure-class func-closure) state class-env instance) (get-func-instance name state (closure-static func-closure) return throw class-env instance)))) (get-func-closure name state return throw class-env instance))))))
 
 ; returns the function closure using the function name, state, class environment, and instance
 (define get-func-closure
@@ -405,16 +405,19 @@
       ((and (pair? name) (eq? 'dot (car name))) (MVdot (caddr name) state (get-class-dot (cadr name) state return throw class-env instance) (get-instance-dot (cadr name) state return throw class-env instance)));(MVvariable (caddr name) (list (class-method-env (MVvariable (cadr name) state class-env instance)) (last-layer state)) class-env instance))
       (else (MVvariable name (list (class-method-env (MVvariable (instance-class-name instance) state class-env instance)) (last-layer state)) class-env instance)))))
 
+; evaluate the parameters to be put into the function's state
 (define evaluate-params
   (lambda (values state return throw class-env instance)
     (cond
       ((null? values) (return '()))
       (else (evaluate-params (cdr values) state (lambda (v) (return (cons (MVexpression (car values) state (lambda (v1) v1) throw class-env instance) v))) throw class-env instance)))))
 
+; returns the instance of the function
 (define get-func-instance
-  (lambda (name state return throw class-env instance)
+  (lambda (name state is-static return throw class-env instance)
     (cond
-      ((and (pair? name) (eq? 'dot (car name))) (get-instance-dot (cadr name) state return throw class-env instance));(MVvariable (cadr name) state class-env instance))
+      ((and (pair? name) (eq? 'dot (car name))) (get-instance-dot (cadr name) state return throw class-env instance))
+      (is-static (append instance (list is-static)))
       (else instance))))
 
 ;provides the state after a function call
@@ -653,6 +656,12 @@
   (lambda (variable class-env)
     (declared? variable (class-field-names class-env))))
 
+(define static?
+  (lambda (instance)
+    (if (eq? 3 (length instance))
+        (caddr instance)
+        #f)))
+
 ; returns a state that contains the instance names and values
 (define get-instance-state
   (lambda (class-env instance)
@@ -705,7 +714,7 @@
 (test "5test19.txt" 'A 100)
 (test "5test20.txt" 'A 420)
 (test "5test21.txt" 'A 10)
-(interpret "5test22.txt" 'A) ; ERROR
+;(interpret "5test22.txt" 'A) ; ERROR
 
 
 
