@@ -179,9 +179,6 @@
   (lambda (variable expression state tree return break throw class-env instance)
     (cond
       ((and (pair? variable) (eq? 'dot (car variable))) (MSassign-dot variable expression state tree return break throw class-env instance))
-                                                        ;(MSassign-top (caddr variable) expression state tree return break throw 
-                                                        ;              (get-class-dot (cadr variable) state class-env instance)
-                                                        ;              (get-instance-dot (cadr variable) state class-env instance)))
       ((var-in-state? variable state) (interpret-help (cdr tree) (MSassign-layer variable expression state state throw class-env instance) return break throw class-env instance))
       ((var-in-static? variable class-env) (interpret-help (cdr tree) state return break throw (create-class (car class-env)
                                                                                                              (MSassign variable 
@@ -196,6 +193,7 @@
                                                                                                                                                  (list (class-field-names class-env) (cadr instance)) state throw class-env instance))))) 
       (else (error "undeclared variable" variable)))))
 
+; assigns the variable when a dot expression is involved
 (define MSassign-dot
   (lambda (dot-expr expression state tree return break throw class-env instance)
     (cond
@@ -250,13 +248,11 @@
 
 
 ; this returns the state after all the class is scanned through
-; right now only does static functions
 (define MSclass
   (lambda (name parent body state throw instance)
     ((lambda (class-env)
        (add-to-state name
                      (box (create-class (get-parent parent)
-                                        ; static field list
                                         (list (append (namelist (field-env class-env)) 
                                                       (namelist (get-parent-fields (get-parent parent) state temp-class temp-instance)))
                                               (append (valuelist (get-parent-fields (get-parent parent) state temp-class temp-instance))
@@ -271,30 +267,35 @@
                                                 (valuelist (instance-env class-env)))))
                      state)) (interpret-static body initial-state initial-state initial-state state throw (create-class (get-parent parent) '() '() '() '())  instance))))
 
+; get the parent, returns null if no parent exists
 (define get-parent
   (lambda (parent)
     (cond
       ((null? parent) '())
       (else (cadr parent)))))
 
+; get the fields of the parent
 (define get-parent-fields
   (lambda (parent state class-env instance)
     (cond
       ((null? parent) layer)
       (else (class-field-env (MVvariable parent state class-env instance)))))) 
 
+; get the functions of the parent
 (define get-parent-funcs
   (lambda (parent state class-env instance)
     (cond
       ((null? parent) layer)
       (else (class-method-env (MVvariable parent state class-env instance))))))
 
+; get the instance name of the parent
 (define get-parent-instance-names
   (lambda (parent state class-env instance)
     (cond
       ((null? parent) '())
       (else (class-field-names (MVvariable parent state class-env instance))))))
 
+; get the initial vaues of the parent
 (define get-parent-initial-values
   (lambda (parent state class-env instance)
     (cond
@@ -312,6 +313,8 @@
     (create-instance name
                      (create-copy (class-initial-values (MVvariable name state class-env instance))))))
 
+; creates a copy of the initial values of the instance
+; used so that each instance has its own boxes of its fields
 (define create-copy
   (lambda (l)
     (cond
@@ -441,6 +444,7 @@
       ((null? param-values) (error "not enough parameters")) 
       (else (addparams (cdr param-names) (cdr param-values) (MSdeclare (car param-names) (cons (car param-values) '()) state throw class-env instance) throw class-env instance)))))
 
+; creates a new instance
 (define create-instance
   (lambda (class-name field-values)
     (list class-name field-values)))
@@ -452,6 +456,7 @@
                 (list (append (valuelist (top-layer state)) (list value))))
           (cdr state))))
 
+; returns the state of the exception
 (define MSexception
   (lambda (try-body catch-body finally-body catch-var state return break throw class-env instance)
     ((lambda (try-state)
@@ -460,6 +465,7 @@
            (MVreturn try-state (MSfinally finally-body state return break throw class-env instance) return throw class-env instance))) 
      (MStry try-body catch-body catch-var state return break throw class-env instance))))
 
+; returns the try state
 (define MStry
   (lambda (try-body catch-body catch-var state return break throw class-env instance)
     (call/cc
@@ -467,16 +473,19 @@
        (remove-layer (interpret-help try-body (new-layer state) return break 
                                      (lambda (v) (new-throw (MScatch catch-body (add-to-state catch-var (box v) state) return break throw class-env instance))) class-env instance))))))
 
+; returns the catch state
 (define MScatch
   (lambda (catch-body state return break throw class-env instance)
     (remove-layer (interpret-help catch-body (new-layer state) return break throw class-env instance))))
 
+; returns the finally state
 (define MSfinally
   (lambda (finally-body state return break throw class-env instance)
     (remove-layer (interpret-help finally-body (new-layer state) return break throw class-env instance))))
        
 
 ;ABSTRACTIONS
+
 ;the empty state
 (define initial-state '((() ())))
 
@@ -581,10 +590,12 @@
   (lambda (state)
     (cons  layer state)))
 
+; returns the last layer the state
 (define last-layer
   (lambda (state)
     (car (reverse state))))
 
+; returns true if the condition is 'true or #t, false otherwise
 (define check-condition
   (lambda (condition)
     (cond
@@ -656,6 +667,7 @@
   (lambda (variable class-env)
     (declared? variable (class-field-names class-env))))
 
+; returns true if the instance is static
 (define static?
   (lambda (instance)
     (if (eq? 3 (length instance))
@@ -710,7 +722,7 @@
 (test "5test15.txt" 'List 15)
 (test "5test16.txt" 'Box 16)
 ;(test "5test17.txt" 'List 123456)
-;(test "5test18.txt" 'List 5285)
+(test "5test18.txt" 'List 5285)
 (test "5test19.txt" 'A 100)
 (test "5test20.txt" 'A 420)
 (test "5test21.txt" 'A 10)
